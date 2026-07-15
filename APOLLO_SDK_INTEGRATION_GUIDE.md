@@ -13,20 +13,22 @@ This document is a companion to the [API Reference](./README.md). While the API 
 2. [Required Files](#required-files)
 3. [BfgSettings.asset — Game Configuration](#bfgsettingsasset--game-configuration)
 4. [BfgDebugSettings.asset — Debug Configuration](#bfgdebugsettingsasset--debug-configuration)
-5. [ApolloNetworkConfig.json — Network Endpoints](#apollonetworkconfigjson--network-endpoints)
-6. [Integration Walkthrough](#integration-walkthrough)
+5. [BfgFirebaseSettings.asset — Firebase Configuration](#bfgfirebasesettingsasset--firebase-configuration)
+6. [ApolloNetworkConfig.json — Network Endpoints](#apollonetworkconfigjson--network-endpoints)
+7. [Integration Walkthrough](#integration-walkthrough)
    - [Step 1 — Implement IAuthenticationAdapter](#step-1--implement-iauthenticationadapter)
    - [Step 2 — Implement IAuthenticationListener](#step-2--implement-iauthenticationlistener)
    - [Step 3 — Implement ITelemetryListener](#step-3--implement-itelemetrylistener)
    - [Step 4 — Register, Initialize, and Supply the Attribution ID](#step-4--register-initialize-and-supply-the-attribution-id)
-7. [Feature Guide](#feature-guide)
+8. [Feature Guide](#feature-guide)
    - [Custom Telemetry Events](#custom-telemetry-events)
    - [App User ID](#app-user-id)
    - [Purchase Telemetry](#purchase-telemetry)
    - [Consent: App Tracking Transparency (iOS)](#consent-app-tracking-transparency-ios)
    - [Consent: Third-Party Tracking (GDPR)](#consent-third-party-tracking-gdpr)
-8. [What Happens Inside Initialize()](#what-happens-inside-initialize)
-9. [Common Pitfalls](#common-pitfalls)
+   - [Firebase (Analytics, Crashlytics, Messaging)](#firebase-analytics-crashlytics-messaging)
+9. [What Happens Inside Initialize()](#what-happens-inside-initialize)
+10. [Common Pitfalls](#common-pitfalls)
 
 ---
 
@@ -139,6 +141,41 @@ In the Unity Editor: **Assets → Create → BFG → Debug Settings**. Save into
 |---|---|---|---|
 | `appsFlyerDebug` | `bool` | `false` | Enables AppsFlyer SDK debug mode. When `true`, the attribution adapter receives `debugMode = true` in its `Initialize()` call, which causes AppsFlyer to log verbose output. Disable before shipping. |
 | `usePurchaseDetailDebugUI` | `bool` | `false` | Enables a debug overlay UI for simulating purchasing scenarios (success, unavailable, no products, app not known). For QA use only. Disable before shipping. |
+
+---
+
+## BfgFirebaseSettings.asset — Firebase Configuration
+
+`BfgFirebaseSettings.asset` is an optional ScriptableObject of type `FirebaseSettings`. It is the single
+place you configure Firebase for your game. If the file is absent or `enableFirebase` is `false`, the
+SDK skips Firebase entirely.
+
+> The Firebase project credential files — `google-services.json` (Android) and `GoogleService-Info.plist`
+> (iOS) — are provided per game as files in the project; they are **not** stored in this asset. The
+> Firebase Unity SDK + EDM4U must be imported and the `APOLLO_FIREBASE` build define set. See
+> `FIREBASE_SETUP.md`.
+
+### Creating the Asset
+
+In the Unity Editor: right-click **Create → BFG/Apollo/Firebase Settings**. Name it
+`BfgFirebaseSettings` and keep it in a `Resources` folder — the SDK loads
+`Resources/BfgFirebaseSettings` at runtime. (The **BFG → Apollo → Firebase Settings** menu exists
+only in the Apollo source project — it is an editor script that is not shipped in the DLL package,
+so games consuming the package must use the Create menu.)
+
+### Fields
+
+| Field | Type | Default | Description |
+|---|---|---|---|
+| `enableFirebase` | `bool` | `true` | Master switch. When `false`, the Firebase controller is not constructed. |
+| `enableAnalytics` | `bool` | `true` | Enables Firebase Analytics. Collection still requires GDPR consent at runtime. |
+| `enableCrashlytics` | `bool` | `true` | Enables Crashlytics. Not consent-gated — collection starts at Firebase init. |
+| `enableMessaging` | `bool` | `true` | Enables Cloud Messaging (push notifications). |
+| `autoSubscribeTopics` | `List<string>` | empty | FCM topics auto-subscribed once Messaging initializes. |
+| `requestNotificationPermissionOnStart` | `bool` | `false` | When `true`, Apollo requests OS notification permission during init; otherwise call `RequestNotificationPermission()` yourself. |
+| `tokenUploadUrl` | `string` | empty | Push-server URL the SDK POSTs the FCM token to on issue/rotation (`{ token, platform, deviceId }`, deviceId = BFGUDID). Empty = upload disabled. |
+| `tokenUploadApiKey` | `string` | empty | Optional `x-api-key` header value for token uploads. Must match the server's key. |
+| `verboseDebugLogging` | `bool` | `true` | Emits debug logs for FCM tokens and message payloads for testing. |
 
 ---
 
@@ -589,6 +626,100 @@ private void OnConsentDialogDismissed(bool userAccepted)
 
 ---
 
+### Firebase (Analytics, Crashlytics, Messaging)
+
+Apollo owns the Firebase integration: enable features in `BfgFirebaseSettings.asset`, optionally register
+a messaging listener, then call the simple APIs. No Firebase glue code is required in your game.
+
+> **In-App Messaging** is not included — the Firebase Unity SDK does not support it (Android/iOS/Flutter
+> only).
+
+**1. Configure** — create `BfgFirebaseSettings.asset` (right-click **Create → BFG/Apollo/Firebase Settings**, in a `Resources` folder) and toggle the
+features you want. Complete the one-time package import in `FIREBASE_SETUP.md`.
+
+**2. (Optional) Register a listener before `Initialize()`** for push callbacks:
+
+```csharp
+public class MyFirebaseMessagingListener : IFirebaseMessagingListener
+{
+    public void OnFcmTokenReceived(string token) { Debug.Log($"FCM token: {token}"); }
+    public void OnMessageReceived(FirebaseRemoteMessage message) { /* foreground message */ }
+    public void OnMessageOpened(FirebaseRemoteMessage message) { /* user tapped notification */ }
+}
+
+// before BFGUnitySDK.Initialize():
+BFGUnitySDK.RegisterListener<MyFirebaseMessagingListener>();
+```
+
+**3. Grant consent after your GDPR flow** — nothing is collected until you call this:
+
+```csharp
+private void OnConsentDialogDismissed(bool userAccepted)
+{
+    // Gates Analytics only (Crashlytics is always on). Persisted across sessions.
+    BFGUnitySDK.SetFirebaseDataCollectionConsent(userAccepted);
+}
+```
+
+**4. Use the APIs:**
+
+```csharp
+// Analytics (dropped + logged until consent is granted)
+BFGUnitySDK.LogFirebaseEvent("level_complete", new Dictionary<string, object> { { "level", 7L } });
+
+// Crashlytics
+BFGUnitySDK.LogCrashlyticsMessage("Entered shop");
+BFGUnitySDK.RecordCrashlyticsException(new Exception("handled"));
+
+// Cloud Messaging
+BFGUnitySDK.GetFcmToken(token => Debug.Log(token));
+BFGUnitySDK.SubscribeToFcmTopic("promotions");
+BFGUnitySDK.RequestNotificationPermission();   // Android 13+ POST_NOTIFICATIONS, iOS APNs prompt
+```
+
+**Notes:**
+- **iOS: the notification-permission prompt is shown only when you call
+  `RequestNotificationPermission()`** (or set `requestNotificationPermissionOnStart`). Call it at the
+  point in your consent flow where the prompt should appear (e.g. after GDPR/ATT — keep
+  `requestNotificationPermissionOnStart` off if you have a consent flow). Until that first call on a
+  given install, **every Cloud Messaging API is inert** (`GetFcmToken` returns `null`; topic and
+  token APIs no-op) — on iOS the first touch of the FirebaseMessaging API would otherwise show the
+  OS prompt immediately. On later launches the FCM listeners attach automatically at init.
+  `autoSubscribeTopics` is applied when messaging becomes active, so it works with this gate.
+- **iOS builds need APNs/Xcode configuration Unity does not produce** — an APNs Auth Key uploaded to
+  the Firebase project, the push entitlement, the `remote-notification` background mode, and
+  `UNITY_USES_REMOTE_NOTIFICATIONS=1` in the exported `Preprocessor.h`. Without the last one,
+  data-only pushes are silently dropped before reaching C#. See the iOS section of
+  `FIREBASE_SETUP.md` and the reference post-process script
+  `GalaxyGems/Assets/Scripts/Editor/iOSPostProcessBuild.cs`.
+- **Android: `RequestNotificationPermission()` shows the Android 13+ `POST_NOTIFICATIONS` runtime
+  prompt** (a logged no-op below API 33, where the permission is granted by default). It requires
+  `<uses-permission android:name="android.permission.POST_NOTIFICATIONS" />` in the game's
+  `Assets/Plugins/Android/AndroidManifest.xml` — neither Unity nor the Firebase SDK adds it. Call it
+  after your consent flow (Galaxy Gems: from `GDPRManager` right after the GDPR decision). Unlike
+  iOS there is no messaging gate on Android — the FCM listeners attach at SDK init, so the token
+  (and its automatic upload) and foreground `OnMessageReceived` work regardless of the permission;
+  it only controls whether notifications display.
+- **Android notification opens need no game code, but do need the Firebase launcher activity.**
+  Apollo delivers `OnMessageOpened` for cold-start launches (reads the launch intent at init) and
+  warm background taps (filled from the tap intent), de-duplicated by message id. On Android the
+  opened message carries metadata + the custom `data` payload only — FCM strips the notification
+  title/body from the tap intent by design (they are null on tap; iOS populates them). Put
+  open-relevant values in `data`.
+  The game's launcher activity must be Firebase's `com.google.firebase.MessagingUnityPlayerActivity`
+  (Application Entry Point = Activity) — see the Android section of `FIREBASE_SETUP.md` and the
+  reference files in `GalaxyGems/Assets/Plugins/Android/`.
+- Apollo sets the Crashlytics user id to the App User ID automatically for correlation.
+- The FCM token is uploaded automatically to `tokenUploadUrl` (when set) on every issue/rotation,
+  keyed by the SDK's stable device id (BFGUDID) + platform; games do not write upload code. On iOS
+  the first upload happens after the game calls `RequestNotificationPermission()` (deferred FCM
+  listeners); on later launches it re-fires at init. On a fresh iOS install the upload fires
+  **twice** (the pre-APNs token is rotated once the APNs token is set) — expected; the server's
+  deviceId+platform upsert keeps only the latest.
+- Firebase makes **no changes to GTS telemetry** — the two pipelines are independent.
+
+---
+
 ## What Happens Inside Initialize()
 
 Understanding the internal initialization sequence helps diagnose setup problems. When `BFGUnitySDK.Initialize()` is called, the following happens in order:
@@ -603,6 +734,7 @@ Understanding the internal initialization sequence helps diagnose setup problems
    - `TelemetryController` — always constructed; receives a reference to `AttributionController` (may be null)
    - `PurchasingController` — only constructed if an `IPurchaseListener` was registered
    - `AuthenticationController` — only constructed if an `IAuthenticationListener` was registered
+   - `FirebaseController` — only constructed if `BfgFirebaseSettings.asset` exists with `enableFirebase = true`; initializes Firebase asynchronously and treats init failure as non-fatal
 4. **Component initialization** — each component is initialized in the order it was constructed. Each signals completion asynchronously via `ComponentInitializationComplete()`.
 5. **All-complete check** — once every component has reported success (or `ServiceUnused`), `_isInitialized` is set to `true`.
    - If an `IInitializationListener` was registered, `InitializationComplete()` is called on it.
