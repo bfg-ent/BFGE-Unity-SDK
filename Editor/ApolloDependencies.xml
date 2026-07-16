@@ -1,0 +1,14 @@
+<!-- External Dependency Manager (EDM4U) manifest for the Apollo SDK's own Android runtime
+     dependencies. Shipped inside the Apollo UPM package (Editor/ApolloDependencies.xml) so
+     consuming games resolve these automatically — no manual mainTemplate.gradle edits.
+
+     play-services-ads-identifier provides com.google.android.gms.ads.identifier.AdvertisingIdClient,
+     which AndroidNativeUtil.GetIfa() calls via JNI for the adid/ifa telemetry fields. Without it a
+     game still builds and runs, but the advertising id silently degrades to empty/unknown.
+     Games must also declare the com.google.android.gms.permission.AD_ID permission in their
+     AndroidManifest.xml (required on Android 13+) — see the integration guide. -->
+<dependencies>
+  <androidPackages>
+    <androidPackage spec="com.google.android.gms:play-services-ads-identifier:18.0.1" />
+  </androidPackages>
+</dependencies>

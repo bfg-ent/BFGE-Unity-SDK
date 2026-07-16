@@ -61,6 +61,47 @@ The SDK loads these files automatically during `Initialize()`. All three must be
 
 The SDK looks for these files by name using `Resources.Load()`, so they must be named exactly as shown. They do not need to be in the root `Resources` folder — any `Resources` subfolder works.
 
+### Native iOS plugins (bundled — no game action required)
+
+The Apollo DLL calls native iOS code via `[DllImport("__Internal")]` for device info
+(`_GetIfa`, `_GetIDFV`, `_GetCarrierName`, `_IsPushNotificationEnabled`,
+`_GetApplicationBuildVersion`) and Keychain persistence (`getKey`, `setKey`, `deleteKey`). The
+implementations ship **inside the package** at `Plugins/iOS/Apollo/` (`ApolloUtil.mm`,
+`KeyChainPlugin.mm/.h`, `UICKeyChainStore.m/.h`) with iOS-only import settings and the
+`AdSupport`/`CoreTelephony` framework dependencies preconfigured — Unity compiles them into iOS
+builds automatically.
+
+> **Migration note (upgrading from package versions without these files):** if your project
+> previously hand-copied Apollo native files into `Assets/Plugins/iOS/` (e.g. an `Apollo/` folder
+> with `ApolloUtil.mm` / `KeyChainPlugin.mm` / `UICKeyChainStore.*`), **delete your local copies**
+> when upgrading — keeping both results in duplicate-symbol linker errors in Xcode. Without the
+> package copies (older package versions), iOS builds fail with unresolved symbols like `_GetIfa`
+> or `_getKey`; upgrading the package fixes that with no manual file copying.
+
+### Android runtime dependency (bundled via EDM4U) + AD_ID permission
+
+On Android the SDK reads the advertising id (`adid`/`ifa` telemetry fields) via
+`com.google.android.gms.ads.identifier.AdvertisingIdClient`, which requires the
+`com.google.android.gms:play-services-ads-identifier` Gradle dependency. The package declares it in
+`Editor/ApolloDependencies.xml`, which the External Dependency Manager (EDM4U) resolves into your
+Gradle build automatically — no game action needed when EDM4U is present (it is, for any game using
+the Firebase features). If your project does not use EDM4U, add the line manually to
+`mainTemplate.gradle`:
+
+```groovy
+implementation 'com.google.android.gms:play-services-ads-identifier:18.0.1'
+```
+
+**Beware the silent failure mode:** without this dependency the game still builds and runs — the
+SDK catches the missing class and telemetry ships with an empty/unknown advertising id.
+
+Games must also declare the ad-id permission in their `AndroidManifest.xml` (required on
+Android 13+; without it the ad id is zeroed):
+
+```xml
+<uses-permission android:name="com.google.android.gms.permission.AD_ID" />
+```
+
 ---
 
 ## BfgSettings.asset — Game Configuration
@@ -570,6 +611,11 @@ private void OnPurchaseFailed(YourFailedOrderType order, YourCartItemType item)
 ### Consent: App Tracking Transparency (iOS)
 
 On iOS 14.5 and later, apps must request permission before accessing the IDFA (Identifier for Advertisers). The ATT prompt is displayed by native iOS code; your Unity layer receives the result via a callback and must forward it to the Apollo SDK so the telemetry system can set the correct IDFA behavior.
+
+**The ATT native bridge is the game's responsibility** — Apollo does not ship one; it only consumes
+the result via `BFGUnitySDK.ApplyAttConsentStatus()`. For a working reference implementation see
+Galaxy Gems: `Assets/Plugins/iOS/ATT/AppTrackingTransparency.mm` (native prompt +
+`UnitySendMessage` callback) paired with `Assets/Scripts/Prototype/ATTManager.cs`.
 
 **Call `ApplyAttConsentStatus` as soon as you receive the native result:**
 

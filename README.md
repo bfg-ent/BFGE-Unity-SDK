@@ -44,6 +44,18 @@ This reference covers the following Apollo SDK subsystems:
 
 This reference does not cover the Attribution adapter, Purchasing adapter, or Consent management types (`ConsentList`, `ConsentStatus`, `GDPRStatus`).
 
+> **iOS native code is bundled.** The package ships the native iOS sources the SDK's
+> `DllImport("__Internal")` calls require (`Plugins/iOS/Apollo/` — device info + Keychain). Games
+> need no manual native-file setup; if your project previously hand-copied these files into
+> `Assets/Plugins/iOS/`, delete the local copies to avoid duplicate-symbol linker errors (see the
+> Integration Guide's "Native iOS plugins" section). The ATT prompt bridge is the one native piece
+> games own themselves — Apollo only consumes its result via `ApplyAttConsentStatus()`.
+>
+> **Android dependency is bundled too.** `Editor/ApolloDependencies.xml` (EDM4U) resolves
+> `play-services-ads-identifier`, which the SDK needs for the advertising id — without it telemetry
+> silently ships an empty ad id. Games must declare `com.google.android.gms.permission.AD_ID` in
+> their manifest (Android 13+). See the Integration Guide's Android runtime dependency section.
+
 ---
 
 ## Setup & Initialization
