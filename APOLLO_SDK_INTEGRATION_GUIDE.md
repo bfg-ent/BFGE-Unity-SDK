@@ -78,6 +78,31 @@ builds automatically.
 > package copies (older package versions), iOS builds fail with unresolved symbols like `_GetIfa`
 > or `_getKey`; upgrading the package fixes that with no manual file copying.
 
+### Device id (bfgudid) persistence on iOS
+
+The SDK's stable device id (`bfgudid`, used by GTS telemetry and FCM token uploads) is
+deterministic on iOS: derived as `SHA1(IDFV + "BFGUDID")`, so it is identical for every app from
+the same App Store vendor on a device and survives reinstalls while at least one vendor app is
+installed. The iOS Keychain (item `com.apollo.sdk.bfgudid`, service `com.bfg.apollo`) covers the
+remaining case — the user removing every vendor app.
+
+**For cross-app sharing and full uninstall-survival, each game must add the Keychain Sharing
+entitlement** with the access group:
+
+```
+$(AppIdentifierPrefix)com.bfg.apollo.shared
+```
+
+Add it in a post-process build step via `ProjectCapabilityManager.AddKeychainSharing(...)` — see
+Galaxy Gems' `Assets/Scripts/Editor/iOSPostProcessBuild.cs` for the reference implementation.
+Sharing only works between apps signed by the **same Apple team** (the access group is prefixed by
+the team's App Identifier Prefix). Without the entitlement the SDK automatically falls back to a
+per-app keychain: the id still survives reinstalls of that app, it just isn't shared across apps.
+
+> **Android caveat:** Android's id is derived from `ANDROID_ID`, which since Android 8 is scoped
+> per app-**signing key** — different games share an id only if they ship with the same signing
+> key (watch out for per-app Play App Signing keys).
+
 ### Android runtime dependency (bundled via EDM4U) + AD_ID permission
 
 On Android the SDK reads the advertising id (`adid`/`ifa` telemetry fields) via

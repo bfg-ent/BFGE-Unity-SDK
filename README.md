@@ -55,6 +55,11 @@ This reference does not cover the Attribution adapter, Purchasing adapter, or Co
 > `play-services-ads-identifier`, which the SDK needs for the advertising id — without it telemetry
 > silently ships an empty ad id. Games must declare `com.google.android.gms.permission.AD_ID` in
 > their manifest (Android 13+). See the Integration Guide's Android runtime dependency section.
+>
+> **Cross-app device id (iOS):** for the `bfgudid` to be shared across a team's apps and survive
+> full uninstalls, each game adds the Keychain Sharing entitlement with access group
+> `$(AppIdentifierPrefix)com.bfg.apollo.shared` — see the Integration Guide's "Device id (bfgudid)
+> persistence on iOS" section.
 
 ---
 
