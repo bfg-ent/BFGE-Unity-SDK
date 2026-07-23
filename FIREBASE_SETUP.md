@@ -88,6 +88,32 @@ DLLs on the next Editor focus / package re-resolve.
 3. Run **EDM4U → Resolve** for Android; for iOS, build and let Cocoapods install the Firebase pods.
 4. **Crashlytics (iOS)**: ensure dSYM upload is configured for symbolicated crash reports.
 
+### 3.1 Firebase / Google Cloud portal prerequisites (per game project)
+
+Everything push-related (notification pushes AND data-only pushes — there is no separate setting
+for data-only) rides the FCM HTTP v1 API. Per Firebase project, verify once:
+
+1. **FCM v1 API enabled** — Firebase console → gear icon → **Project settings → Cloud Messaging**:
+   "Firebase Cloud Messaging API (V1)" must show **Enabled**. If not: three-dot menu → *Manage API
+   in Google Cloud Console* → Enable. (Leave the deprecated "Cloud Messaging API (Legacy)" alone.)
+   Google Cloud Console equivalent (note: "APIs & Services" may be hidden in the left nav until
+   pinned — use the top search bar, ☰ → *View all products*, or go directly):
+   `https://console.cloud.google.com/apis/library/fcm.googleapis.com?project=<project-id>`
+2. **APNs Auth Key uploaded** (iOS delivery) — same Cloud Messaging tab, *Apple app configuration*.
+   See §4.1 for details and the silent failure mode when it is missing.
+3. **Service-account key** (server-side sender credential, e.g. the Firebase Messaging Console) —
+   Firebase console → **Project settings → Service accounts** → *Generate new private key*. The
+   downloaded JSON is the send server's `serviceAccountKey.json`. **Never commit it.** This is a
+   credential, not an enablement toggle — but no server can send without it.
+4. **Custom service accounts only**: the default `firebase-adminsdk-…` account can already send. A
+   custom account needs the **Firebase Cloud Messaging API Admin** role
+   (`cloudmessaging.messages.create`) in Google Cloud Console → IAM & Admin → IAM.
+
+> **In-App Messaging:** Firebase IAM has its own console section (Engage → In-App Messaging) and
+> GCP API, but enabling them is pointless for Apollo games — the Firebase **Unity** SDK does not
+> support In-App Messaging (see §1). Foreground messages rendered by the game's own UI are just
+> data-only pushes and need nothing beyond the above.
+
 ---
 
 ## 4. iOS: APNs + Xcode export steps (required for Cloud Messaging)
