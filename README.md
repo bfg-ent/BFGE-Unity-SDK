@@ -142,7 +142,7 @@ Stores the attribution provider's device ID (e.g., the AppsFlyer ID). Once set, 
 |---|---|---|
 | `attributionID` | `string` | The attribution provider's device identifier. |
 
-> Call this as soon as the attribution ID is available — typically immediately after `Initialize()`, once your attribution adapter has obtained the ID from its underlying SDK. Any telemetry events dispatched before `SetAttributionID` is called will have an empty `afid`.
+> Call this as soon as the attribution ID is available — typically immediately after `Initialize()`, once your attribution adapter has obtained the ID from its underlying SDK. Any telemetry events dispatched before `SetAttributionID` is called will have an empty `afid`, with one exception: on the very first launch the SDK holds the automatic `install` and `sessionStart` events for up to 5 seconds waiting for this call, so those events carry the `afid` whenever it arrives within that window.
 
 ---
 
