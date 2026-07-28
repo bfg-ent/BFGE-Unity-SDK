@@ -118,15 +118,23 @@ static void ApolloInstallSceneHook(void)
 
         SEL sel = @selector(scene:willConnectToSession:options:);
         Method existing = class_getInstanceMethod(sceneCls, sel);
-        if (existing != NULL)
+        if (class_addMethod(sceneCls, sel, (IMP)Apollo_SceneWillConnect, "v@:@@@"))
         {
-            g_apolloOriginalSceneConnectImp = method_getImplementation(existing);
-            method_setImplementation(existing, (IMP)Apollo_SceneWillConnect);
+            // sceneCls had no implementation of its own; if one was inherited from a
+            // superclass, preserve it as the call-through target.
+            if (existing != NULL)
+            {
+                g_apolloOriginalSceneConnectImp = method_getImplementation(existing);
+            }
         }
         else
         {
-            class_addMethod(sceneCls, sel, (IMP)Apollo_SceneWillConnect, "v@:@@@");
+            // sceneCls already implements this selector directly — safe to swizzle in place.
+            existing = class_getInstanceMethod(sceneCls, sel);
+            g_apolloOriginalSceneConnectImp = method_getImplementation(existing);
+            method_setImplementation(existing, (IMP)Apollo_SceneWillConnect);
         }
+        g_apolloSceneHookInstalled = YES;
         g_apolloSceneHookInstalled = YES;
     }
 }
