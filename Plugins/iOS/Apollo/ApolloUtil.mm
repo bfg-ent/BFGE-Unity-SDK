@@ -8,11 +8,13 @@
 - (char *)getIdfv;
 - (int)getApplicationBuildVersion;
 - (BOOL)isPushNotificationEnabled;
+- (int)getAttTrackingStatus;
 
 @end
 
 // ApolloUtil.mm
 #import "AdSupport/ASIdentifierManager.h"
+#import <AppTrackingTransparency/ATTrackingManager.h>
 #import <UIKit/UIKit.h>
 #import <UserNotifications/UserNotifications.h>
 #import <Foundation/Foundation.h>
@@ -63,6 +65,17 @@
     return buildVersionInt;
 }
 
+// Values follow ATTrackingManagerAuthorizationStatus (and Apollo's ATTStatus enum):
+// 0 = not determined, 1 = restricted, 2 = denied, 3 = authorized.
+- (int)getAttTrackingStatus {
+    if (@available(iOS 14, *)) {
+        return (int)[ATTrackingManager trackingAuthorizationStatus];
+    }
+
+    // Pre-ATT OS versions: map the legacy AdSupport flag onto the same scale.
+    return [[ASIdentifierManager sharedManager] isAdvertisingTrackingEnabled] ? 3 : 2;
+}
+
 - (BOOL)isPushNotificationEnabled {
     __block BOOL enabled = NO;
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
@@ -111,4 +124,8 @@ extern "C" bool _IsPushNotificationEnabled() {
 
 extern "C" int _GetApplicationBuildVersion() {
     return [GetAppController() getApplicationBuildVersion];
+}
+
+extern "C" int _GetAttTrackingStatus() {
+    return [GetAppController() getAttTrackingStatus];
 }

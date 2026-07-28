@@ -55,7 +55,7 @@ PluginImporter:
         AddToEmbeddedBinaries: false
         CPU: AnyCPU
         CompileFlags: 
-        FrameworkDependencies: AdSupport;CoreTelephony;
+        FrameworkDependencies: AdSupport;CoreTelephony;AppTrackingTransparency;
   userData: 
   assetBundleName: 
   assetBundleVariant: 
