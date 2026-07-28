@@ -156,6 +156,8 @@ public static void ApplyAttConsentStatus(ATTStatus authorized)
 
 Stores the iOS App Tracking Transparency (ATT) consent result. Call this after receiving the OS callback from the ATT prompt. The SDK reads this value when building telemetry payloads to determine whether the IDFA may be included.
 
+Note the SDK also refreshes the stored value directly from the OS once per cold start (iOS restarts the app when the user changes its tracking permission in the Settings app, so the first events of a launch always reflect the current OS state). This call remains the update path for the one ATT change that happens without a restart: the initial ATT prompt resolving mid-session.
+
 | Parameter | Type | Description |
 |---|---|---|
 | `authorized` | [`ATTStatus`](#attstatus) | The authorization status returned by the OS after the ATT prompt. |
@@ -363,7 +365,11 @@ APIs are inert** — `GetFcmToken` invokes its callback with `null`; topic subsc
 fetches a token. From the next launch onward the listeners attach automatically during init. On a
 fresh install, expect the token to be issued once before APNs registration completes and rotated
 once the APNs token is set (so `OnFcmTokenReceived` / the token upload fire twice — the push server
-keys rows by deviceId+platform, so the latest wins).
+keys rows by deviceId+platform, so the latest wins). Notification opens are delivered to
+`OnMessageOpened` with no game code on iOS too: cold-start taps (app killed) are captured natively
+at launch — Unity's UIScene lifecycle otherwise drops the tap payload — and replayed after init,
+warm background taps come via the Firebase opened event, and both paths are de-duplicated by
+message id. iOS opened messages carry the full APNs payload, including title/body.
 
 > **iOS builds** additionally require Firebase-Console and Xcode-export configuration that Unity
 > does not produce (APNs Auth Key, push entitlement, `remote-notification` background mode,
