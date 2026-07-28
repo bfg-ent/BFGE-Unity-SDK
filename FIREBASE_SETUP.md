@@ -188,6 +188,15 @@ Unity's export does not enable push, so post-process the exported project (see G
   foregrounded, and on the next background→foreground resume. Background delivery of silent pushes is
   best-effort on iOS — see the Firebase Messaging Console README ("data-only vs hybrid") for the
   delivery guidance.
+- **Notification opens are handled by the SDK — no game code needed.** Cold start (app killed):
+  Unity's UIScene lifecycle delivers the tapped notification in the scene connection options, which
+  neither Unity's scene delegate nor the Firebase iOS SDK reads — so the SDK captures it natively at
+  launch (`Plugins/iOS/Apollo/ApolloPushLaunch.mm`) and replays it as `OnMessageOpened` after
+  Firebase initializes. Warm background tap: the Firebase C# opened event fires directly. Both paths
+  are de-duplicated by message id, so `OnMessageOpened` fires once per tap. Unlike Android, iOS
+  opened messages DO carry the notification title/body (the tap delivers the full APNs payload);
+  the custom `data` payload is delivered on both platforms. Silent `content-available` wakes never
+  count as opens (the capture requires a real user tap on a displayable push notification).
 
 ---
 

@@ -658,7 +658,9 @@ private void OnTrackingAuthorizationCompleted(string statusCode)
 }
 ```
 
-**What this does:** The SDK writes the status to `PlayerPrefs` under the key `BFG.Apollo.Policy.ATT`. The telemetry system reads this value when building GTS events to decide whether to include the IDFA in the payload.
+**What this does:** The SDK writes the status to `PlayerPrefs` under the key `BFG.Apollo.Policy.ATT`. The telemetry system reads this value when building GTS events to decide whether to include the IDFA in the payload (and to fill the GTS `aptts` field).
+
+The SDK also refreshes that key directly from the OS (`ATTrackingManager.trackingAuthorizationStatus`) once per cold start, so events sent early in a launch always reflect the current OS state — including changes made in the Settings app while the app was not running (those kill the app, so they always land on a cold start). `ApplyAttConsentStatus` covers the one ATT change that happens without a restart: the initial ATT prompt resolving mid-session.
 
 **`ATTStatus` values** (map 1:1 to iOS `ATTrackingManager.AuthorizationStatus`):
 
@@ -771,15 +773,17 @@ BFGUnitySDK.RequestNotificationPermission();   // Android 13+ POST_NOTIFICATIONS
   iOS there is no messaging gate on Android — the FCM listeners attach at SDK init, so the token
   (and its automatic upload) and foreground `OnMessageReceived` work regardless of the permission;
   it only controls whether notifications display.
-- **Android notification opens need no game code, but do need the Firebase launcher activity.**
-  Apollo delivers `OnMessageOpened` for cold-start launches (reads the launch intent at init) and
-  warm background taps (filled from the tap intent), de-duplicated by message id. On Android the
+- **Notification opens need no game code on either platform.** Apollo delivers `OnMessageOpened`
+  for cold-start launches (Android: reads the launch intent at init; iOS: replays the tapped
+  notification captured natively at launch — Unity's UIScene lifecycle otherwise drops it) and warm
+  background taps (via the Firebase opened event), de-duplicated by message id. On Android the
   opened message carries metadata + the custom `data` payload only — FCM strips the notification
   title/body from the tap intent by design (they are null on tap; iOS populates them). Put
   open-relevant values in `data`.
-  The game's launcher activity must be Firebase's `com.google.firebase.MessagingUnityPlayerActivity`
-  (Application Entry Point = Activity) — see the Android section of `FIREBASE_SETUP.md` and the
-  reference files in `GalaxyGems/Assets/Plugins/Android/`.
+  On Android the game's launcher activity must be Firebase's
+  `com.google.firebase.MessagingUnityPlayerActivity` (Application Entry Point = Activity) — see the
+  Android section of `FIREBASE_SETUP.md` and the reference files in
+  `GalaxyGems/Assets/Plugins/Android/`. iOS needs no equivalent setup.
 - Apollo sets the Crashlytics user id to the App User ID automatically for correlation.
 - The FCM token is uploaded automatically to `tokenUploadUrl` (when set) on every issue/rotation,
   keyed by the SDK's stable device id (BFGUDID) + platform; games do not write upload code. On iOS
@@ -822,8 +826,8 @@ Understanding the internal initialization sequence helps diagnose setup problems
 **Calling `SendCustomEvent` before initialization completes**
 The SDK drops events and logs a warning if called before `_isStarted` is `true`. Wrap startup events in the `OnInitializationComplete` callback if you need to send them immediately.
 
-**Forgetting to call `ApplyAttConsentStatus` before telemetry events are sent**
-The IDFA consent status is read at event-build time. If you present the ATT prompt asynchronously and telemetry events fire before the result arrives, those events will include the IDFA based on the last-stored `PlayerPrefs` value (which defaults to `NotDetermined` / `0` on a fresh install). Call `ApplyAttConsentStatus` as soon as the OS delivers the result.
+**Forgetting to call `ApplyAttConsentStatus` after the ATT prompt resolves**
+The IDFA consent status is read at event-build time. The SDK seeds it from the OS once per cold start, so events sent before the prompt correctly report `NotDetermined` — but the prompt itself resolves mid-session without restarting the app, so events sent between the user's choice and your `ApplyAttConsentStatus` call will still carry the pre-prompt status. Call `ApplyAttConsentStatus` as soon as the OS delivers the result.
 
 **Pointing production builds at the test endpoint**
 The `ApolloNetworkConfig.json` file controls where events are delivered. Test and production use different `UrlRoot` values. Ensure your build pipeline substitutes the production config before shipping.
