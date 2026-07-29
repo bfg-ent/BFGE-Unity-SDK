@@ -623,13 +623,50 @@ private void OnPurchaseFailed(YourFailedOrderType order, YourCartItemType item)
         errorCode     = (int)order.FailureReason,
         errorMessage  = order.Details,
         errorReason   = (PurchaseErrorReason)(int)order.FailureReason,
-        purchasePhase = PurchasePhase.Unknown   // use Unknown if your library
-                                                // doesn't distinguish phases
+        purchasePhase = MapFailureReasonToPhase(order.FailureReason)
     });
+}
+
+private static PurchasePhase MapFailureReasonToPhase(PurchaseFailureReason reason)
+{
+    switch (reason)
+    {
+        case PurchaseFailureReason.PurchasingUnavailable:
+        case PurchaseFailureReason.StoreNotConnected:
+            return PurchasePhase.StartPhase;
+        case PurchaseFailureReason.ExistingPurchasePending:
+        case PurchaseFailureReason.ProductUnavailable:
+            return PurchasePhase.PreBuyPhase;
+        case PurchaseFailureReason.UserCancelled:
+        case PurchaseFailureReason.PaymentDeclined:
+        case PurchaseFailureReason.DuplicateTransaction:
+        case PurchaseFailureReason.PurchaseMissing:
+            return PurchasePhase.StoreResponsePhase;
+        case PurchaseFailureReason.SignatureInvalid:
+            return PurchasePhase.ClientVerificationPhase;
+        case PurchaseFailureReason.ValidationFailure:
+            return PurchasePhase.ServerVerificationPhase;
+        default:
+            return PurchasePhase.Unknown;
+    }
 }
 ```
 
-**`purchasePhase`** identifies where in the purchase pipeline the failure happened. If you are reporting failures directly from Unity IAP callbacks (which don't map to the Apollo phases), use `PurchasePhase.Unknown`. If your server-side verification flow raises a failure, use the appropriate phase (`ClientVerificationPhase` or `ServerVerificationPhase`) to improve diagnostic precision.
+| Unity IAP `PurchaseFailureReason` | → `PurchasePhase` | Why |
+|---|---|---|
+| `PurchasingUnavailable` | `StartPhase` | Device/security-setting restriction, detected before any store contact |
+| `StoreNotConnected` | `StartPhase` | Raised before initiating the store round-trip |
+| `ExistingPurchasePending` | `PreBuyPhase` | Local pending-transaction check, before proceeding to buy |
+| `ProductUnavailable` | `PreBuyPhase` | Raised from local product/cart validation, before any store call |
+| `UserCancelled` | `StoreResponsePhase` | Outcome of the store's purchase dialog |
+| `PaymentDeclined` | `StoreResponsePhase` | The store's own payment-processing response |
+| `DuplicateTransaction` | `StoreResponsePhase` | The store reports the transaction was already processed |
+| `PurchaseMissing` | `StoreResponsePhase` | Store billing client responded OK, just without purchase data |
+| `SignatureInvalid` | `ClientVerificationPhase` | On-device receipt signature check |
+| `ValidationFailure` | `ServerVerificationPhase` | A remote/cloud-hosted receipt-verification service round-trip |
+| `Unknown` | `Unknown` | Genuine catch-all; no better phase available |
+
+**`purchasePhase`** identifies where in the purchase pipeline the failure happened. The mapping above is the recommended one **specifically for Unity's built-in IAP library** (`com.unity.purchasing`), derived from where each `PurchaseFailureReason` is actually raised in Unity IAP's own source (before any store call, as part of the store's response, or during receipt verification). If you're integrating a different purchasing library, its failure reasons may not map to the same origins — check your library's own documentation before reusing this mapping, and fall back to `PurchasePhase.Unknown` if it doesn't expose enough detail to distinguish phases.
 
 ---
 
