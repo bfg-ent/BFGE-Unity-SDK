@@ -679,17 +679,17 @@ public enum PurchaseErrorReason
 
 Normalized reason for a purchase failure, set on `PurchaseFailureData.errorReason`. When using Unity IAP, cast the `FailureReason` integer directly: `(PurchaseErrorReason)(int)failureReason`.
 
-| Value | Description |
-|---|---|
-| `PurchasingUnavailable` | Purchasing system unavailable on this device. |
-| `ExistingPurchasePending` | A prior transaction for this product is still open. |
-| `ProductUnavailable` | The product is not available in the store. |
-| `SignatureInvalid` | Receipt signature validation failed. |
-| `UserCancelled` | The user cancelled the purchase flow. |
-| `PaymentDeclined` | The payment method was declined. |
-| `DuplicateTransaction` | This transaction was already processed. |
-| `NoConnection` | No network connectivity. |
-| `Unknown` | Failure reason could not be determined. |
+| Value | Integer | Description |
+|---|---|---|
+| `PurchasingUnavailable` | `0` | Purchasing system unavailable on this device. |
+| `ExistingPurchasePending` | `1` | A prior transaction for this product is still open. |
+| `ProductUnavailable` | `2` | The product is not available in the store. |
+| `SignatureInvalid` | `3` | Receipt signature validation failed. |
+| `UserCancelled` | `4` | The user cancelled the purchase flow. |
+| `PaymentDeclined` | `5` | The payment method was declined. |
+| `DuplicateTransaction` | `6` | This transaction was already processed. |
+| `NoConnection` | `7` | No network connectivity. |
+| `Unknown` | `8` | Failure reason could not be determined. |
 
 ---
 
@@ -701,7 +701,7 @@ public enum PurchasePhase
 
 **Namespace:** `BFG.Apollo.Purchasing`
 
-Identifies the pipeline stage where a purchase failure occurred, set on `PurchaseFailureData.purchasePhase`. When using Unity IAP, which does not map directly to these phases, use `PurchasePhase.Unknown`.
+Identifies the pipeline stage where a purchase failure occurred, set on `PurchaseFailureData.purchasePhase`. See [Reporting a Failed Purchase](APOLLO_SDK_INTEGRATION_GUIDE.md#reporting-a-failed-purchase) for a recommended `PurchaseFailureReason` → `PurchasePhase` mapping when using Unity IAP; other purchasing libraries may need a different mapping, or `PurchasePhase.Unknown` if they don't expose enough detail to distinguish phases.
 
 | Value | Integer | Description |
 |---|---|---|
