@@ -135,7 +135,6 @@ static void ApolloInstallSceneHook(void)
             method_setImplementation(existing, (IMP)Apollo_SceneWillConnect);
         }
         g_apolloSceneHookInstalled = YES;
-        g_apolloSceneHookInstalled = YES;
     }
 }
 
