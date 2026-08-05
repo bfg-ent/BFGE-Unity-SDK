@@ -9,6 +9,7 @@
 - (int)getApplicationBuildVersion;
 - (BOOL)isPushNotificationEnabled;
 - (int)getAttTrackingStatus;
+- (char *)getRegionCode;
 
 @end
 
@@ -76,6 +77,15 @@
     return [[ASIdentifierManager sharedManager] isAdvertisingTrackingEnabled] ? 3 : 2;
 }
 
+// The device's Region setting (Settings > General > Language & Region > Region) — deliberately
+// NOT the same as the user's preferred Language, and NOT something Mono's CultureInfo/RegionInfo
+// ever reflects (those only track preferred Language, and don't re-read Region when it changes
+// independently). NSLocale.countryCode is keyed to this Region setting specifically.
+- (char *)getRegionCode {
+    NSString *regionCode = [[NSLocale currentLocale] countryCode];
+    return convertNSStringToCString(regionCode);
+}
+
 - (BOOL)isPushNotificationEnabled {
     __block BOOL enabled = NO;
     dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
@@ -128,4 +138,8 @@ extern "C" int _GetApplicationBuildVersion() {
 
 extern "C" int _GetAttTrackingStatus() {
     return [GetAppController() getAttTrackingStatus];
+}
+
+extern "C" char* _GetRegionCode() {
+    return [GetAppController() getRegionCode];
 }
