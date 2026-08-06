@@ -1,540 +1,145 @@
-# Apollo SDK API Reference
+# Apollo SDK — Unity Package
 
-**SDK Version:** 0.1.0
-**Platform:** Unity (iOS & Android)
+This repository is the **UPM distribution package** for the Apollo SDK: prebuilt `Bfg.Apollo`
+assemblies (iOS, Android, and Standalone/Editor) plus the SDK's bundled native iOS plugins and
+Android dependency manifest. It is built from the Apollo SDK source repository
+([`bfg-ent/Apollo_Rebuild`](https://github.com/bfg-ent/Apollo_Rebuild)) — no SDK source code lives
+here, and changes should never be made directly to the DLLs in this repo.
 
----
-
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Setup & Initialization](#setup--initialization)
-3. [BFGUnitySDK](#bfgunitysdksdk-entry-point) — SDK entry point
-4. [Adapter Interfaces](#adapter-interfaces)
-   - [IAuthenticationAdapter](#iauthenticationadapter)
-5. [Listener Interfaces](#listener-interfaces)
-   - [IAuthenticationListener](#iauthenticationlistener)
-   - [ITelemetryListener](#itelemetrylistener)
-6. [Data Types](#data-types)
-   - [CustomEventData](#customeventdata)
-   - [PurchaseSuccessData](#purchasesuccessdata)
-   - [PurchaseFailureData](#purchasefailuredata)
-7. [Enums](#enums)
-   - [ATTStatus](#attstatus)
-   - [IdentityProviderName](#identityprovidername)
-   - [PurchaseErrorReason](#purchaseerrorreason)
-   - [PurchasePhase](#purchasephase)
+- **Package name:** `bfg.apollo`
+- **Minimum Unity version:** 2021.2
+- **Platforms:** iOS & Android (Standalone/Editor DLL included for in-Editor development)
+- **Minimum iOS version:** 15.0
+- **Minimum Android version:** API level 25 (Android 7.1)
 
 ---
 
-## Overview
+## Requirements
 
-This reference covers the following Apollo SDK subsystems:
+- **Git** must be installed and on your `PATH` — Unity's Package Manager invokes it to fetch git
+  packages. Verify with `git --version` in a terminal.
+- **Access to this repository.** It is private to the `bfg-ent` organization, so the machine
+  adding the package must be able to clone it:
+  - **HTTPS** — sign in with a Git credential manager, or use a GitHub personal access token with
+    `repo` read scope.
+  - **SSH** — an SSH key registered with your GitHub account. Use the SSH URL form shown below.
 
-| Subsystem | Description |
-|---|---|
-| **Initialization** | Registers adapters/listeners, then calls `Initialize()` |
-| **Authentication** | Implements `IAuthenticationAdapter` and `IAuthenticationListener` |
-| **Telemetry** | Sends custom game-lifecycle events and purchase events; implements `ITelemetryListener` |
-| **Purchasing** | Reports purchase success and failure via `BFGUnitySDK` telemetry helpers |
-| **Consent / Privacy** | Applies ATT status (iOS) and third-party tracking consent (GDPR) |
-
-This reference does not cover the Attribution adapter, Purchasing adapter, or Consent management types (`ConsentList`, `ConsentStatus`, `GDPRStatus`).
+  Quick check: if `git clone https://github.com/bfg-ent/Apollo-Package.git` works in a terminal,
+  Unity can fetch the package the same way.
 
 ---
 
-## Setup & Initialization
+## Install the latest release
 
-Initialize the SDK as follows:
+Releases are git tags in this repository (e.g. `v0.0.2`). Find the newest one on the
+[Releases page](https://github.com/bfg-ent/Apollo-Package/releases) — the newest production
+release is marked **Latest**; releases with a **Pre-release** badge are betas (see
+[Beta releases](#beta--pre-release-versions) below).
 
-```csharp
-// 1. Register the authentication adapter implementation
-BFGUnitySDK.RegisterAdapter<AuthenticationAdapter>();
+> **Always pin a tag.** Unity's Package Manager has no "auto-latest" for git packages — a URL
+> without a `#tag` suffix tracks the default branch's current HEAD, which changes as development
+> lands and makes builds unreproducible. Never ship a build from an untagged reference.
 
-// 2. Register listener implementations
-BFGUnitySDK.RegisterListener<BasicAuthListener>();
-BFGUnitySDK.RegisterListener<BasicTelemetryListener>();
+**Option A — Package Manager window:**
 
-// 3. Initialize — must follow all registrations
-BFGUnitySDK.Initialize();
+1. **Window → Package Manager**
+2. **+** (top-left) → **Add package from git URL…**
+3. Enter the URL with the newest release tag, e.g.:
 
-// 4. Supply the attribution ID (e.g. AppsFlyer device ID) — included in all GTS events as 'afid'
-BFGUnitySDK.SetAttributionID(ATTRIBUTION_ID);
+```
+https://github.com/bfg-ent/Apollo-Package.git#v0.0.2
 ```
 
-All `RegisterAdapter<T>` and `RegisterListener<T>` calls must occur before `Initialize()`.
+**Option B — edit `Packages/manifest.json` directly:**
 
----
-
-## BFGUnitySDK — SDK Entry Point
-
-```csharp
-public static class BFGUnitySDK
-```
-
-No namespace; available globally.
-
----
-
-### Initialization
-
-#### `Initialize`
-
-```csharp
-public static void Initialize()
-```
-
-Starts the SDK. Wires all registered adapters and listeners and begins lifecycle tracking. Call once per session, after all registrations.
-
----
-
-### Adapter & Listener Registration
-
-#### `RegisterAdapter<T>`
-
-```csharp
-public static void RegisterAdapter<T>() where T : IAdapter, new()
-```
-
-Registers a concrete adapter. `T` must implement `IAdapter` and have a parameterless constructor. Call before `Initialize()`.
-
-#### `RegisterListener<T>`
-
-```csharp
-public static void RegisterListener<T>() where T : IListener, new()
-```
-
-Registers a concrete listener. `T` must implement `IListener` and have a parameterless constructor. Call before `Initialize()`.
-
----
-
-### Attribution ID
-
-#### `SetAttributionID`
-
-```csharp
-public static void SetAttributionID(string attributionID)
-```
-
-Stores the attribution provider's device ID (e.g., the AppsFlyer ID). Once set, this value is included in all outbound GTS telemetry events as the `afid` field. The value is persisted across sessions via `PlayerPrefs`.
-
-| Parameter | Type | Description |
-|---|---|---|
-| `attributionID` | `string` | The attribution provider's device identifier. |
-
-> Call this as soon as the attribution ID is available — typically immediately after `Initialize()`, once your attribution adapter has obtained the ID from its underlying SDK. Any telemetry events dispatched before `SetAttributionID` is called will have an empty `afid`.
-
----
-
-### Consent & Privacy
-
-#### `ApplyAttConsentStatus`
-
-```csharp
-public static void ApplyAttConsentStatus(ATTStatus authorized)
-```
-
-Stores the iOS App Tracking Transparency (ATT) consent result. Call this after receiving the OS callback from the ATT prompt. The SDK reads this value when building telemetry payloads to determine whether the IDFA may be included.
-
-| Parameter | Type | Description |
-|---|---|---|
-| `authorized` | [`ATTStatus`](#attstatus) | The authorization status returned by the OS after the ATT prompt. |
-
-```csharp
-// Example: native bridge delivers status as a string integer
-if (int.TryParse(statusCode, out int value))
+```json
 {
-    ATTStatus status = (ATTStatus)value;
-    BFGUnitySDK.ApplyAttConsentStatus(status);
+  "dependencies": {
+    "bfg.apollo": "https://github.com/bfg-ent/Apollo-Package.git#v0.0.2"
+  }
 }
 ```
 
-> iOS-specific. No-op on Android.
-
-#### `ApplyThirdPartyTrackingConsentStatus`
-
-```csharp
-public static void ApplyThirdPartyTrackingConsentStatus(bool authorized = true)
-```
-
-Stores the user's consent for third-party tracking. This value is written into all outbound GTS telemetry events as the `tpte` (third-party tracking enabled) field. Call when the GDPR/consent UI is dismissed.
-
-| Parameter | Type | Default | Description |
-|---|---|---|---|
-| `authorized` | `bool` | `true` | `true` if the user granted consent; `false` if denied or withdrawn. |
+Unity resolves and imports the package on the next focus/refresh. The package appears in the
+Package Manager under **Apollo**.
 
 ---
 
-### Telemetry
+## Install a specific version
 
-#### `SendCustomEvent<T>`
+Append the release tag to the URL after `#`. Any tag from the Releases page works:
 
-```csharp
-public static void SendCustomEvent<T>(string eventName, T customEventData)
-    where T : BFG.Apollo.Telemetry.DataObjects.CustomEvent.CustomEventData, new()
+```json
+"bfg.apollo": "https://github.com/bfg-ent/Apollo-Package.git#v0.0.2"
 ```
 
-Sends a custom-typed telemetry event to GTS. Define your payload by subclassing [`CustomEventData`](#customeventdata).
+**SSH URL form** (for machines authenticating with an SSH key):
 
-| Parameter | Type | Description |
-|---|---|---|
-| `eventName` | `string` | Name identifying the event type. |
-| `customEventData` | `T` | An instance of your `CustomEventData` subclass carrying the event payload. |
+```json
+"bfg.apollo": "git@github.com:bfg-ent/Apollo-Package.git#v0.0.2"
+```
 
-| Type parameter | Constraint |
+### Beta / pre-release versions
+
+Beta builds carry a semver **pre-release suffix** in both the tag and the package version, e.g.
+`v0.0.3-beta.1`, and are marked **Pre-release** on the GitHub Releases page. They are not
+production builds — install one only when you are explicitly validating a beta:
+
+```json
+"bfg.apollo": "https://github.com/bfg-ent/Apollo-Package.git#v0.0.3-beta.1"
+```
+
+---
+
+## Updating or switching versions
+
+1. Change the tag in `Packages/manifest.json` to the new release (e.g. `#v0.0.2` → `#v0.0.3`).
+2. Return to Unity — the Package Manager re-resolves automatically.
+
+If Unity keeps the old version: `Packages/packages-lock.json` pins the exact commit that was
+resolved for the current tag. Changing the tag in `manifest.json` normally updates the lock, but
+if the package appears stuck, delete the `"bfg.apollo"` entry from `packages-lock.json` (or use
+the **Update** button on the package in the Package Manager window) and let Unity re-resolve.
+
+Downgrading works the same way — set the tag to any older release.
+
+---
+
+## Local development (working against a checkout)
+
+To develop against a local clone of this repository instead of a tagged release — e.g. while
+testing unreleased SDK changes — use a `file:` reference with a path relative to your project's
+`Packages/` folder:
+
+```json
+"bfg.apollo": "file:../../Apollo-Package"
+```
+
+Unity reads the package directly from that folder; local changes (rebuilt DLLs) are picked up on
+refresh. Never ship a build with a `file:` reference — switch back to a release tag first.
+
+---
+
+## After installing
+
+- **Integration:** follow `APOLLO_SDK_INTEGRATION_GUIDE.md` (bundled in this package) for the
+  required configuration files (`BfgSettings.asset`, `ApolloNetworkConfig.json`, …), adapter and
+  listener implementations, and feature-by-feature setup. GDPR/ATT consent integration is covered
+  by `APOLLO_CONSENT_INTEGRATION_GUIDE.md` in the source repository.
+- **Version history:** see `CHANGELOG.md` and the
+  [GitHub Releases page](https://github.com/bfg-ent/Apollo-Package/releases).
+- **API reference:** lives in the source repository
+  ([`bfg-ent/Apollo_Rebuild`](https://github.com/bfg-ent/Apollo_Rebuild) — `README.md` and
+  `APOLLO_SDK_API_REFERENCE.md`).
+
+---
+
+## Troubleshooting
+
+| Symptom | Fix |
 |---|---|
-| `T` | Subclass of `CustomEventData`, `new()` |
-
-#### `SetAppUserId`
-
-```csharp
-public static void SetAppUserId(string appUserId)
-```
-
-Sets a game-level user identifier attached to all subsequent telemetry events. Persisted across sessions.
-
-| Parameter | Type | Description |
-|---|---|---|
-| `appUserId` | `string` | Your game's identifier for this user. |
-
-#### `GetAppUserId`
-
-```csharp
-public static string GetAppUserId()
-```
-
-Returns the currently stored application user ID.
-
-**Returns:** `string` — The app user ID, or an empty string if none has been set.
-
----
-
-### Purchasing Telemetry
-
-#### `SendPurchasingSuccessEvent`
-
-```csharp
-public static void SendPurchasingSuccessEvent(PurchaseSuccessData customEventData)
-```
-
-Reports a completed purchase (including restores) to the telemetry system.
-
-| Parameter | Type | Description |
-|---|---|---|
-| `customEventData` | [`PurchaseSuccessData`](#purchasesuccessdata) | Transaction details. |
-
-#### `SendPurchasingFailureEvent`
-
-```csharp
-public static void SendPurchasingFailureEvent(PurchaseFailureData customEventData)
-```
-
-Reports a failed purchase to the telemetry system.
-
-| Parameter | Type | Description |
-|---|---|---|
-| `customEventData` | [`PurchaseFailureData`](#purchasefailuredata) | Failure details. |
-
----
-
-## Adapter Interfaces
-
-Adapters are interfaces your game implements to connect third-party services into the Apollo SDK.
-
----
-
-### IAuthenticationAdapter
-
-```csharp
-public interface IAuthenticationAdapter : IAdapter
-```
-
-**Namespace:** `BFG.Apollo.Auth`
-**Implemented by:** `AuthenticationAdapter`
-
-This adapter connects a Firebase-backed authentication service to the Apollo SDK. It exposes a singleton via `AuthenticationAdapter.getInstance()` so other systems can read and set auth state directly.
-
-| Member | Signature | Implementation Notes |
-|---|---|---|
-| `ProviderName` | `string ProviderName { get; }` | Returns `"FirebaseAuthentication"` |
-| `UserID` | `string UserID { get; }` | Reads from `PlayerPrefs`; defaults to a constant default ID if not set |
-| `Initialize` | `void Initialize(IAuthenticationListener authenticationListener)` | Stores the singleton reference; immediately calls `authenticationListener.OnAuthenticationInitialized()` |
-| `Start` | `void Start()` | Empty — no deferred startup work needed |
-| `IsAuthenticated` | `bool IsAuthenticated()` | Returns `authenticatedState`, which is backed by `PlayerPrefs` and survives restarts |
-| `IsAnonymouslyAuthenticated` | `bool IsAnonymouslyAuthenticated()` | Returns `false` — anonymous auth is not used |
-| `Login` | `void Login(IdentityProviderName identityProviderName)` | Empty — logins are not initiated through the SDK in this implementation |
-| `Logout` | `void Logout()` | Empty — logouts are not initiated through the SDK in this implementation |
-
-> **Note on persistence:** Both `UserID` and `IsAuthenticated()` read from `PlayerPrefs`, so their values survive app restarts without requiring a new login. They can be updated at runtime through `SetUserID(string)` and `SetAuthenticatedState(bool)` (non-interface helpers on `AuthenticationAdapter`).
-
----
-
-## Listener Interfaces
-
-Listeners receive callbacks from the SDK. Your implementations are registered before `Initialize()`.
-
----
-
-### IAuthenticationListener
-
-```csharp
-public interface IAuthenticationListener : IListener
-```
-
-**Namespace:** `BFG.Apollo.Auth`
-**Implemented by:** `BasicAuthListener`
-
-| Method | Signature | Behavior |
-|---|---|---|
-| `OnAuthenticationInitialized` | `void OnAuthenticationInitialized()` | Logs `"Authentication initialization successful"` |
-| `OnAuthenticationInitializeFailed` | `void OnAuthenticationInitializeFailed(string failureReason)` | Logs the failure reason |
-| `OnLoginSuccess` | `void OnLoginSuccess()` | Logs `"Login Success"` |
-| `OnLoginFailed` | `void OnLoginFailed(string failureReason)` | Logs a warning with the failure reason |
-| `OnLogoutSuccess` | `void OnLogoutSuccess()` | Logs `"Logout Success"` |
-| `OnLogoutFailed` | `void OnLogoutFailed(string failureReason)` | Logs the failure reason |
-
----
-
-### ITelemetryListener
-
-```csharp
-public interface ITelemetryListener : IListener
-```
-
-**Namespace:** `BFG.Apollo.Telemetry`
-**Implemented by:** `BasicTelemetryListener`
-
-| Method | Signature | Behavior |
-|---|---|---|
-| `OnTelemetrySent` | `void OnTelemetrySent(bool success, string message)` | Logs `message` to the Unity console regardless of `success` |
-
----
-
-## Data Types
-
----
-
-### CustomEventData
-
-```csharp
-[Serializable]
-public class CustomEventData
-```
-
-**Namespace:** `BFG.Apollo.Telemetry.DataObjects.CustomEvent`
-
-Base class for all custom telemetry event payloads. Subclass this to add game-specific fields.
-
-| Field | Type | Description |
-|---|---|---|
-| `eventName` | `string` | Name of the event. Set this on your subclass instance before passing to `SendCustomEvent`. |
-
-**Example subclasses:**
-
-```csharp
-// Game lifecycle event
-class GameLifecycleEvent : CustomEventData
-{
-    public string HeartsAvailable;  // Current lives count as a string
-}
-
-// Inventory change event
-class InventoryChangeEvent : CustomEventData
-{
-    public string Item;    // Item name (e.g., "Sword")
-    public string Status;  // Action (e.g., "Drop")
-}
-```
-
-Type constraint for `SendCustomEvent<T>`: `T` must subclass `CustomEventData` and have a parameterless constructor.
-
----
-
-### PurchaseSuccessData
-
-```csharp
-public class PurchaseSuccessData
-```
-
-**Namespace:** `BFG.Apollo.Purchasing`
-
-Carries the details of a completed purchase. Pass a populated instance to `BFGUnitySDK.SendPurchasingSuccessEvent`.
-
-| Field | Type | Description |
-|---|---|---|
-| `productId` | `string` | Store-specific product identifier. |
-| `transactionID` | `string` | Unique transaction identifier from the store. |
-| `transactionTimestamp` | `long` | Unix timestamp (seconds UTC) of the transaction. Use `0` for restored purchases when the original timestamp is unavailable. |
-| `price` | `string` | Purchase price as a decimal string (e.g., `"2.99"`). Use `localizedPrice.ToString(CultureInfo.InvariantCulture)` for new purchases; use `localizedPriceString` for restored purchases. |
-| `currency` | `string` | ISO 4217 currency code (e.g., `"USD"`). |
-| `receipt` | `string` | Raw receipt data from the store. |
-| `uniqueReceiptID` | `string` | A unique identifier derived from the receipt (e.g., a hash). Pass `null` for restored purchases if not available. |
-| `restore` | `bool` | `true` if this is a restore; `false` for a new purchase. |
-| `signature` | `string` | Purchase signature (Android). Pass `null` on iOS or when unavailable. |
-| `description` | `string` | Localized product description from the store. |
-
-**Example — new purchase:**
-
-```csharp
-BFGUnitySDK.SendPurchasingSuccessEvent(new PurchaseSuccessData
-{
-    currency             = cartItem.Product.metadata.isoCurrencyCode,
-    description          = cartItem.Product.metadata.localizedDescription,
-    price                = cartItem.Product.metadata.localizedPrice.ToString(CultureInfo.InvariantCulture),
-    productId            = cartItem.Product.definition.storeSpecificId,
-    receipt              = obj.Info.Receipt,
-    uniqueReceiptID      = obj.Info.Receipt.GetHashCode().ToString(),
-    restore              = false,
-    signature            = null,
-    transactionID        = obj.Info.TransactionID,
-    transactionTimestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds()
-});
-```
-
-**Example — restore:**
-
-```csharp
-BFGUnitySDK.SendPurchasingSuccessEvent(new PurchaseSuccessData
-{
-    currency             = cartItem.Product.metadata.isoCurrencyCode,
-    description          = cartItem.Product.metadata.localizedDescription,
-    price                = cartItem.Product.metadata.localizedPriceString,
-    productId            = cartItem.Product.definition.storeSpecificId,
-    receipt              = confirmedOrder.Info.Receipt,
-    uniqueReceiptID      = null,
-    restore              = true,
-    signature            = null,
-    transactionID        = confirmedOrder.Info.TransactionID,
-    transactionTimestamp = 0
-});
-```
-
----
-
-### PurchaseFailureData
-
-```csharp
-public class PurchaseFailureData
-```
-
-**Namespace:** `BFG.Apollo.Purchasing`
-
-Carries the details of a failed purchase. Pass a populated instance to `BFGUnitySDK.SendPurchasingFailureEvent`.
-
-| Field | Type | Description |
-|---|---|---|
-| `productId` | `string` | Store-specific product identifier of the attempted purchase. |
-| `errorCode` | `int` | Raw numeric error code from the store or purchasing library. |
-| `errorMessage` | `string` | Human-readable description of the error. |
-| `errorReason` | [`PurchaseErrorReason`](#purchaseerrorreason) | Normalized failure reason. When using Unity IAP, cast the `FailureReason` integer directly: `(PurchaseErrorReason)(int)obj.FailureReason`. |
-| `purchasePhase` | [`PurchasePhase`](#purchasephase) | The pipeline phase at which the failure occurred. |
-
-**Example:**
-
-```csharp
-BFGUnitySDK.SendPurchasingFailureEvent(new PurchaseFailureData
-{
-    errorCode     = (int)obj.FailureReason,
-    errorMessage  = obj.Details,
-    productId     = cartItem.Product.definition.storeSpecificId,
-    errorReason   = (PurchaseErrorReason)(int)obj.FailureReason,
-    purchasePhase = PurchasePhase.Unknown
-});
-```
-
----
-
-## Enums
-
----
-
-### ATTStatus
-
-```csharp
-public enum ATTStatus
-```
-
-**Namespace:** `BFG.Apollo.Policy`
-
-Mirrors iOS `ATTrackingManager.AuthorizationStatus`. Values are mapped 1:1 to the native integer values delivered by the iOS ATT callback.
-
-| Value | Integer | Description |
-|---|---|---|
-| `NotDetermined` | `0` | The user has not yet been prompted. |
-| `Restricted` | `1` | Access is restricted by device policy or parental controls. |
-| `Denied` | `2` | The user denied permission. |
-| `Authorized` | `3` | The user granted permission; the IDFA may be read. |
-
-When the native iOS bridge delivers the status as a string integer, cast it as follows:
-
-```csharp
-ATTStatus status = (ATTStatus)value;
-BFGUnitySDK.ApplyAttConsentStatus(status);
-```
-
-> `ATTStatus.Unknown` is an alias for `NotDetermined` (both equal `0`) and is used only internally by the SDK. Always use `NotDetermined` in app code.
-
----
-
-### IdentityProviderName
-
-```csharp
-public enum IdentityProviderName
-```
-
-**Namespace:** `BFG.Apollo.Auth`
-
-Used as the parameter type for `IAuthenticationAdapter.Login()`. If your implementation does not initiate identity-provider logins through the SDK, `Login()` may be a no-op.
-
-| Value | Description |
-|---|---|
-| `Mock` | Test/mock provider. Do not ship. |
-| `Apple` | Sign in with Apple. |
-| `Google` | Sign in with Google. |
-| `Facebook` | Sign in with Facebook. |
-
----
-
-### PurchaseErrorReason
-
-```csharp
-public enum PurchaseErrorReason
-```
-
-**Namespace:** `BFG.Apollo.Purchasing`
-
-Normalized reason for a purchase failure, set on `PurchaseFailureData.errorReason`. When using Unity IAP, cast the `FailureReason` integer directly: `(PurchaseErrorReason)(int)failureReason`.
-
-| Value | Description |
-|---|---|
-| `PurchasingUnavailable` | Purchasing system unavailable on this device. |
-| `ExistingPurchasePending` | A prior transaction for this product is still open. |
-| `ProductUnavailable` | The product is not available in the store. |
-| `SignatureInvalid` | Receipt signature validation failed. |
-| `UserCancelled` | The user cancelled the purchase flow. |
-| `PaymentDeclined` | The payment method was declined. |
-| `DuplicateTransaction` | This transaction was already processed. |
-| `NoConnection` | No network connectivity. |
-| `Unknown` | Failure reason could not be determined. |
-
----
-
-### PurchasePhase
-
-```csharp
-public enum PurchasePhase
-```
-
-**Namespace:** `BFG.Apollo.Purchasing`
-
-Identifies the pipeline stage where a purchase failure occurred, set on `PurchaseFailureData.purchasePhase`. When using Unity IAP, which does not map directly to these phases, use `PurchasePhase.Unknown`.
-
-| Value | Integer | Description |
-|---|---|---|
-| `Unknown` | `0` | Phase undetermined. Use when the failure source does not map to a specific phase. |
-| `StartPhase` | `1` | Failure at purchase initiation. |
-| `PreBuyPhase` | `2` | Failure during pre-purchase validation. |
-| `HealthCheckPhase` | `3` | Reserved; not currently used. |
-| `StoreResponsePhase` | `4` | Failure processing the store's response. |
-| `ClientVerificationPhase` | `5` | Failure during client-side receipt verification. |
-| `ServerVerificationPhase` | `6` | Failure during server-side receipt verification. |
+| `No 'git' executable was found` when adding the package | Install git and restart Unity (and Unity Hub) so the updated `PATH` is picked up. |
+| `Cannot resolve` / authentication error fetching the URL | The machine can't clone this private repo — set up a credential manager/PAT for HTTPS or an SSH key, and confirm `git clone` of this repo works in a terminal. |
+| Tag change in `manifest.json` doesn't update the package | Remove the `"bfg.apollo"` entry from `Packages/packages-lock.json` and let Unity re-resolve, or use the Package Manager **Update** button. |
+| Duplicate-symbol linker errors in the iOS build | The game project has hand-copied copies of Apollo's native iOS files under `Assets/Plugins/iOS/` from before the package bundled them (including the ATT prompt bridge) — delete the local copies; the package ships all required native sources. |
+| Package shows as `file:` / changes not versioned | A local-development reference was left in `manifest.json` — switch back to a release-tag URL before building. |
