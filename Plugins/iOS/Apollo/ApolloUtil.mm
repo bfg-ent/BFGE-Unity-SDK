@@ -15,6 +15,7 @@
 
 // ApolloUtil.mm
 #import "AdSupport/ASIdentifierManager.h"
+#import "UnityInterface.h" // UnitySendMessage, for the async ATT completion callback
 #import <AppTrackingTransparency/ATTrackingManager.h>
 #import <UIKit/UIKit.h>
 #import <UserNotifications/UserNotifications.h>
@@ -142,4 +143,32 @@ extern "C" int _GetAttTrackingStatus() {
 
 extern "C" char* _GetRegionCode() {
     return [GetAppController() getRegionCode];
+}
+
+// Shows the ATT prompt and reports the user's selection back to managed code — Apollo owns this
+// end to end (games no longer ship their own ATT shim). The completion handler can arrive on any
+// thread and also fires immediately, without showing the prompt, when the status is already
+// determined; either way the result is marshalled to the main queue and delivered via
+// UnitySendMessage to the hidden runner GameObject AttAuthorization creates (see
+// Core/Policy/AttAuthorization.cs). Status values follow ATTrackingManagerAuthorizationStatus /
+// Apollo's ATTStatus enum: 0 = not determined, 1 = restricted, 2 = denied, 3 = authorized.
+extern "C" void _Apollo_RequestTrackingAuthorization(const char* gameObjectName, const char* callbackMethod) {
+    NSString* goName = [NSString stringWithUTF8String:gameObjectName];
+    NSString* method = [NSString stringWithUTF8String:callbackMethod];
+
+    if (@available(iOS 14, *)) {
+        [ATTrackingManager requestTrackingAuthorizationWithCompletionHandler:^(ATTrackingManagerAuthorizationStatus status) {
+            dispatch_async(dispatch_get_main_queue(), ^{
+                NSString* statusStr = [NSString stringWithFormat:@"%d", (int)status];
+                UnitySendMessage([goName UTF8String], [method UTF8String], [statusStr UTF8String]);
+            });
+        }];
+        return;
+    }
+
+    // Pre-ATT OS versions: no prompt exists — resolve immediately with the legacy AdSupport flag
+    // mapped onto the same scale (the same mapping getAttTrackingStatus uses).
+    int legacyStatus = [GetAppController() getAttTrackingStatus];
+    NSString* statusStr = [NSString stringWithFormat:@"%d", legacyStatus];
+    UnitySendMessage([goName UTF8String], [method UTF8String], [statusStr UTF8String]);
 }
