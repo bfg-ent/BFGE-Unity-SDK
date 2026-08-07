@@ -122,15 +122,24 @@ refresh. Never ship a build with a `file:` reference — switch back to a releas
 
 ## After installing
 
-- **Integration:** follow `APOLLO_SDK_INTEGRATION_GUIDE.md` (bundled in this package) for the
-  required configuration files (`BfgSettings.asset`, `ApolloNetworkConfig.json`, …), adapter and
-  listener implementations, and feature-by-feature setup. GDPR/ATT consent integration is covered
-  by `APOLLO_CONSENT_INTEGRATION_GUIDE.md` in the source repository.
-- **Version history:** see `CHANGELOG.md` and the
+All documentation lives in the source repository,
+[`bfg-ent/Apollo_Rebuild`](https://github.com/bfg-ent/Apollo_Rebuild):
+
+- **Integration:** follow
+  [`Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md`](https://github.com/bfg-ent/Apollo_Rebuild/blob/main/Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md)
+  for the required configuration files (`BfgSettings.asset`, `ApolloNetworkConfig.json`, …),
+  adapter and listener implementations, and feature-by-feature setup.
+- **Per-feature docs:** each major feature has a two-document pair in
+  [`Documentation/`](https://github.com/bfg-ent/Apollo_Rebuild/tree/main/Documentation) — a
+  concise integration guide plus a behavior/design document:
+  `GTS_INTEGRATION_GUIDE.md` / `GTS_DESIGN.md` (telemetry),
+  `CONSENT_INTEGRATION_GUIDE.md` / `CONSENT_DESIGN.md` (GDPR + ATT), and
+  `FIREBASE_INTEGRATION_GUIDE.md` / `FIREBASE_DESIGN.md` (Analytics, Crashlytics, FCM).
+- **API reference:** the source repository's
+  [`README.md`](https://github.com/bfg-ent/Apollo_Rebuild/blob/main/README.md) (features overview
+  + full public API surface).
+- **Version history:** the
   [GitHub Releases page](https://github.com/bfg-ent/Apollo-Package/releases).
-- **API reference:** lives in the source repository
-  ([`bfg-ent/Apollo_Rebuild`](https://github.com/bfg-ent/Apollo_Rebuild) — `README.md` and
-  `APOLLO_SDK_API_REFERENCE.md`).
 
 ---
 
