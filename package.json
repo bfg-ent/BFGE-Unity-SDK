@@ -1,7 +1,7 @@
 {
   "name": "bfg.apollo",
   "displayName": "Apollo",
-  "version": "0.0.4-firebase.local.20260810081836",
+  "version": "0.0.2-firebase.local.20260810105352",
   "unity": "2021.2",
   "description": "Big Fish Games Entertainmen' Apollo SDK for Unity (iOS & Android): GTS telemetry, Firebase (Analytics, Crashlytics, FCM), and GDPR/ATT consent management. \n Distributed as prebuilt assemblies with bundled native plugins.",
   "keywords": [
