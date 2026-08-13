@@ -6,7 +6,7 @@
 - (char *)getIfa;
 - (char *)getDeviceCarrierName;
 - (char *)getIdfv;
-- (int)getApplicationBuildVersion;
+- (char *)getApplicationBuildVersion;
 - (BOOL)isPushNotificationEnabled;
 - (int)getAttTrackingStatus;
 - (char *)getRegionCode;
@@ -61,10 +61,13 @@
     return convertNSStringToCString(idfvString);
 }
 
-- (int)getApplicationBuildVersion {
+// CFBundleVersion is "one to three period-separated integers" per Apple's docs (e.g. "1.2.3"),
+// not necessarily a single integer — returning the raw string (rather than [NSString intValue],
+// which truncates at the first '.') preserves it exactly. The GTS payload field this feeds is a
+// string already (see GtsInfoProvider.AppBuildVersion), so this loses no information end to end.
+- (char *)getApplicationBuildVersion {
     NSString *buildVersionString = [[[NSBundle mainBundle] infoDictionary] objectForKey:(NSString *)kCFBundleVersionKey];
-    int buildVersionInt = [buildVersionString intValue];
-    return buildVersionInt;
+    return convertNSStringToCString(buildVersionString);
 }
 
 // Values follow ATTrackingManagerAuthorizationStatus (and Apollo's ATTStatus enum):
@@ -133,7 +136,7 @@ extern "C" bool _IsPushNotificationEnabled() {
     return [GetAppController() isPushNotificationEnabled];
 }
 
-extern "C" int _GetApplicationBuildVersion() {
+extern "C" char* _GetApplicationBuildVersion() {
     return [GetAppController() getApplicationBuildVersion];
 }
 
