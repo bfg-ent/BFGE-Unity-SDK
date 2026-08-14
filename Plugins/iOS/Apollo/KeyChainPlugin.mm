@@ -2,7 +2,7 @@
 #import "UICKeyChainStore.h"
 #import <Security/Security.h>
 
-// Keychain bridge for the Apollo SDK's KeyChainRegistry (getKey/setKey/deleteKey P/Invokes).
+// Keychain bridge for the Unity (Apollo) SDK's KeyChainRegistry (getKey/setKey/deleteKey P/Invokes).
 //
 // Items are stored under a FIXED service shared by every Apollo app (the previous implementation
 // used UICKeyChainStore's default service — the app's bundle id — which made items per-app by

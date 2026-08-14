@@ -7,7 +7,7 @@ using UnityEngine;
 namespace BFG.Apollo.EditorTools
 {
     /// <summary>
-    /// One-step creation of every settings file the Apollo SDK loads from <c>Resources</c> at
+    /// One-step creation of every settings file the Unity (Apollo) SDK loads from <c>Resources</c> at
     /// <c>Initialize()</c>: <c>BfgSettings.asset</c>, <c>BfgFirebaseSettings.asset</c>,
     /// <c>BfgConsent.asset</c>, <c>ApolloNetworkConfig.json</c> and <c>ApolloConsentConfig.json</c>.
     /// </summary>

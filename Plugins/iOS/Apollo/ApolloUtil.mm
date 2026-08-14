@@ -70,7 +70,7 @@
     return convertNSStringToCString(buildVersionString);
 }
 
-// Values follow ATTrackingManagerAuthorizationStatus (and Apollo's ATTStatus enum):
+// Values follow ATTrackingManagerAuthorizationStatus (and the Unity (Apollo) SDK's ATTStatus enum):
 // 0 = not determined, 1 = restricted, 2 = denied, 3 = authorized.
 - (int)getAttTrackingStatus {
     if (@available(iOS 14, *)) {
