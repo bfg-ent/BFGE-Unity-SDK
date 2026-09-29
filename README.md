@@ -2,9 +2,9 @@
 
 This repository is the **UPM distribution package** for the Apollo SDK: prebuilt `Bfg.Apollo`
 assemblies (iOS, Android, and Standalone/Editor) plus the SDK's bundled native iOS plugins and
-Android dependency manifest. It is built from the Apollo SDK source repository
-([`bfg-ent/Apollo_Rebuild`](https://github.com/bfg-ent/Apollo_Rebuild)) — no SDK source code lives
-here, and changes should never be made directly to the DLLs in this repo.
+Android dependency manifest. Developer documentation starts at
+[`Apollo_Documentation.md`](Apollo_Documentation.md) (features overview and full API reference),
+which links on to the per-feature guides in [`Documentation/`](Documentation/).
 
 - **Package name:** `bfg.apollo`
 - **Minimum Unity version:** 2021.2
@@ -122,21 +122,21 @@ refresh. Never ship a build with a `file:` reference — switch back to a releas
 
 ## After installing
 
-All documentation lives in the source repository,
-[`bfg-ent/Apollo_Rebuild`](https://github.com/bfg-ent/Apollo_Rebuild):
+All documentation lives in this repository,
+[`bfg-ent/BFGE-Unity-SDK`](https://github.com/bfg-ent/BFGE-Unity-SDK):
 
 - **Integration:** follow
-  [`Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md`](https://github.com/bfg-ent/Apollo_Rebuild/blob/main/Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md)
+  [`Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md`](Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md)
   for the required configuration files (`BfgSettings.asset`, `ApolloNetworkConfig.json`, …),
   adapter and listener implementations, and feature-by-feature setup.
 - **Per-feature docs:** each major feature has a two-document pair in
-  [`Documentation/`](https://github.com/bfg-ent/Apollo_Rebuild/tree/main/Documentation) — a
+  [`Documentation/`](Documentation/) — a
   concise integration guide plus a behavior/design document:
   `GTS_INTEGRATION_GUIDE.md` / `GTS_DESIGN.md` (telemetry),
   `CONSENT_INTEGRATION_GUIDE.md` / `CONSENT_DESIGN.md` (GDPR + ATT), and
   `FIREBASE_INTEGRATION_GUIDE.md` / `FIREBASE_DESIGN.md` (Analytics, Crashlytics, FCM).
-- **API reference:** the source repository's
-  [`README.md`](https://github.com/bfg-ent/Apollo_Rebuild/blob/main/README.md) (features overview
+- **API reference:**
+  [`Apollo_Documentation.md`](Apollo_Documentation.md) (features overview
   + full public API surface).
 - **Version history:** the
   [GitHub Releases page](https://github.com/bfg-ent/Apollo-Package/releases).
