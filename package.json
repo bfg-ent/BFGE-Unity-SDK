@@ -3,7 +3,7 @@
   "displayName": "BFGE Unity (Apollo) SDK",
   "version": "1.0.0-firebase.local.20260814144636",
   "unity": "2021.2",
-  "description": "BFG Entertainment' Unity (Apollo) SDK (iOS & Android): GTS telemetry, Firebase (Analytics, Crashlytics, FCM), and GDPR/ATT consent management. \n Distributed as prebuilt assemblies with bundled native plugins.",
+  "description": "BFG Entertainment' Unity (Apollo) SDK (iOS, Android & Windows Standalone): GTS telemetry, Firebase (Analytics, Crashlytics, FCM), and GDPR/ATT consent management. \n Distributed as prebuilt assemblies with bundled native plugins.",
   "keywords": [
     "telemetry, firebase, GDPR, ATT"
   ],
