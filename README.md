@@ -1,14 +1,15 @@
 # Apollo SDK — Unity Package
 
 This repository is the **UPM distribution package** for the Apollo SDK: prebuilt `Bfg.Apollo`
-assemblies (iOS, Android, and Standalone/Editor) plus the SDK's bundled native iOS plugins and
+assemblies (iOS, Android, and Editor/Standalone, Windows excluded) plus the SDK's bundled native iOS plugins and
 Android dependency manifest. Developer documentation starts at
 [`Apollo_Documentation.md`](Apollo_Documentation.md) (features overview and full API reference),
 which links on to the per-feature guides in [`Documentation/`](Documentation/).
 
 - **Package name:** `bfg.apollo`
 - **Minimum Unity version:** 2021.2
-- **Platforms:** iOS & Android (Standalone/Editor DLL included for in-Editor development)
+- **Platforms:** iOS & Android (an Editor/Standalone DLL is included for in-Editor development; it is excluded from
+  Windows players, where games use the separate Game Manager SDK, `bfg.gmsdk`)
 - **Minimum iOS version:** 15.0
 - **Minimum Android version:** API level 25 (Android 7.1)
 
