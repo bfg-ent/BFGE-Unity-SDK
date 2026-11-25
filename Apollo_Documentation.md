@@ -60,8 +60,9 @@ to any third-party ad/attribution SDKs it integrates directly.
 
 Wraps three Firebase products behind Apollo's adapter/listener pattern — Apollo ships the adapter,
 so games import the Firebase Unity SDK and call small `BFGUnitySDK` APIs instead of writing
-Firebase glue. **Analytics** is GDPR-gated
-and off by default (Apollo's consent dialog drives it automatically). **Crashlytics** starts at
+Firebase glue. **Analytics** runs from launch and honors the GDPR decision through Firebase
+**Consent Mode** — the ad signals stay denied until the user accepts (Apollo's consent dialog
+drives it automatically). **Crashlytics** starts at
 init — deliberately not consent-gated — with crash reports correlated to the Apollo App User ID.
 **Cloud Messaging** covers the FCM token lifecycle (including automatic token upload to the game's
 push server), OS notification-permission timing under game control, and reliable notification-open
@@ -83,6 +84,12 @@ doesn't enable it skips Firebase entirely.
 > `play-services-ads-identifier`, which the SDK needs for the advertising id — without it telemetry
 > silently ships an empty ad id. Games must declare `com.google.android.gms.permission.AD_ID` in
 > their manifest (Android 13+).
+>
+> **Firebase Consent Mode build processors are bundled.** The package's `Editor/` folder ships
+> `ApolloIosBuildProcessor` and `ApolloAndroidBuildProcessor` (`callbackOrder` 999), which remove
+> the legacy Firebase Analytics kill switch and add the four Consent Mode platform defaults to the
+> exported `Info.plist` / Android manifest on every build — see
+> [`Documentation/FIREBASE_INTEGRATION_GUIDE.md`](Documentation/FIREBASE_INTEGRATION_GUIDE.md).
 >
 > **Cross-app device id (iOS):** for the `bfgudid` to be shared across a team's apps and survive
 > full uninstalls, each game adds the Keychain Sharing entitlement with access group
@@ -218,6 +225,8 @@ Reports a failed purchase to the telemetry system. See [`PurchaseFailureData`](#
 
 Apollo owns an end-to-end GDPR/consent flow: on init and on every foreground it checks a backend policy service for outstanding policies and presents them via its own built-in dialog. Requires [`Resources/ApolloConsentConfig.json`](Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md#apolloconsentconfigjson--policy-service-url); if that config is missing/invalid the whole consent system self-disables. Full behavior is documented in [`Documentation/CONSENT_DESIGN.md`](Documentation/CONSENT_DESIGN.md) and [`Documentation/CONSENT_INTEGRATION_GUIDE.md`](Documentation/CONSENT_INTEGRATION_GUIDE.md).
 
+**Dialog font.** The consent dialog renders in Apollo's own bundled font (LiberationSans SDF), independent of the host game's TMP default. To use your own font, set `consentDialogFont` on `BfgConsent.asset` (see [`CONSENT_INTEGRATION_GUIDE.md` → BfgConsent.asset](Documentation/CONSENT_INTEGRATION_GUIDE.md#2-create-assetsresourcesbfgconsentasset)). CJK OS-font fallbacks are always appended regardless of which font is active.
+
 #### `AddPolicyListener` / `RemovePolicyListener`
 
 ```csharp
@@ -250,7 +259,7 @@ MyThirdPartyAdSdk.SetConsent(adsAllowed);
 public static void EnableTargetedAdvertising(bool enabled)
 ```
 
-**Game-managed consent override.** Call this if your game implements its own GDPR/consent UI instead of using the SDK's built-in dialog. It bypasses the dialog entirely but records the decision through the same persistence/reporting pipeline as a dialog-driven decision. It does not replace [`ApplyThirdPartyTrackingConsentStatus`](#applythirdpartytrackingconsentstatus) or [`SetFirebaseDataCollectionConsent`](#setfirebasedatacollectionconsent) — call those with the user's decision as well.
+**Game-managed consent override.** Call this if your game implements its own GDPR/consent UI instead of using the SDK's built-in dialog. It bypasses the dialog entirely but records the decision through the same persistence/reporting pipeline as a dialog-driven decision, and applies it exactly as a dialog answer would: it calls [`ApplyThirdPartyTrackingConsentStatus`](#applythirdpartytrackingconsentstatus) (GTS `tpte`) and [`SetFirebaseDataCollectionConsent`](#setfirebasedatacollectionconsent) (Firebase Consent Mode) for you, so do not call those as well. Call it after `Initialize()` (before that it logs a warning and does nothing).
 
 #### `ApplyThirdPartyTrackingConsentStatus`
 
@@ -297,7 +306,7 @@ Your Xcode project must contain an `NSUserTrackingUsageDescription` Info.plist e
 
 Wraps Firebase Analytics, Crashlytics, and Cloud Messaging (push). Configured via [`BfgFirebaseSettings.asset`](Documentation/APOLLO_SDK_INTEGRATION_GUIDE.md#bfgfirebasesettingsasset--firebase-configuration); if the asset is missing or `enableFirebase` is off, Firebase is skipped entirely and all of these methods are safe no-ops. Full behavior — including platform build requirements, the iOS messaging gate, and automatic token upload — is documented in [`Documentation/FIREBASE_DESIGN.md`](Documentation/FIREBASE_DESIGN.md) and [`Documentation/FIREBASE_INTEGRATION_GUIDE.md`](Documentation/FIREBASE_INTEGRATION_GUIDE.md).
 
-> **GDPR:** Firebase **Analytics** data collection is **disabled by default** and gated on consent. **Crashlytics is not consent-gated** — it starts at Firebase init (when `enableCrashlytics` is set), regardless of or before any GDPR selection. Apollo's built-in consent dialog drives the Analytics consent automatically; a game running its own consent system UI (**not recommended**) calls `SetFirebaseDataCollectionConsent` with the result itself.
+> **GDPR (Consent Mode):** Firebase **Analytics** initializes and measures from launch; the GDPR decision is expressed through Firebase **Consent Mode** (`FirebaseAnalytics.SetConsent`), not by switching collection off. Until the user accepts, `ad_user_data` and `ad_personalization` are **denied**; on acceptance (or when GDPR does not apply to the user) `analytics_storage`, `ad_storage`, `ad_user_data` and `ad_personalization` are all **granted**. This is the same mapping as the native BFG Android 8.16.0 / iOS 8.14.0 SDKs. **Crashlytics is not consent-gated** — it starts at Firebase init (when `enableCrashlytics` is set), regardless of or before any GDPR selection. Apollo's built-in consent dialog drives the Analytics consent automatically, and Apollo's editor build processors write the Consent Mode platform defaults into the exported `Info.plist` / Android manifest (see [`Documentation/FIREBASE_INTEGRATION_GUIDE.md`](Documentation/FIREBASE_INTEGRATION_GUIDE.md)); a game running its own consent system UI (**not recommended**) reports the result itself (see below).
 
 #### `SetFirebaseDataCollectionConsent`
 
@@ -305,9 +314,9 @@ Wraps Firebase Analytics, Crashlytics, and Cloud Messaging (push). Configured vi
 public static void SetFirebaseDataCollectionConsent(bool granted)
 ```
 
-Grants or revokes consent for Firebase Analytics data collection. The choice is persisted across sessions, so call it once per decision rather than every launch (calling on launch with the stored value is harmless). Crashlytics is not affected by this call.
+Pushes the user's GDPR decision into Firebase Consent Mode. `true` (accepted, or GDPR not applicable) grants all four consent types; `false` (declined, or not yet answered) denies `ad_user_data` and `ad_personalization` and leaves `analytics_storage` / `ad_storage` at their platform defaults (granted) — Analytics keeps measuring either way. The choice is persisted across sessions (PlayerPrefs `BFG.Apollo.Firebase.DataCollectionConsent`) and re-applied at every Firebase init, so call it once per decision rather than every launch (calling on launch with the stored value is harmless). Has no Firebase effect when `enableAnalytics` is off. Crashlytics is not affected by this call.
 
-> ⚠️ <ins>**Only call this if your game uses its own custom consent system.**</ins> When Apollo's built-in consent system is used, Apollo sets Firebase data collection automatically from the user's GDPR decision — calling this yourself is unnecessary and risks overwriting the recorded decision.
+> ⚠️ <ins>**Only call this if your game uses its own custom consent system and does not report the decision through [`EnableTargetedAdvertising`](#enabletargetedadvertising).**</ins> Apollo calls it automatically from the built-in consent dialog, the no-GDPR-policy auto-opt-in, and `EnableTargetedAdvertising` — calling it yourself as well is unnecessary and risks overwriting the recorded decision.
 
 #### Analytics
 
@@ -317,7 +326,7 @@ public static void SetFirebaseUserProperty(string name, string value)
 public static void SetFirebaseAnalyticsUserId(string userId)
 ```
 
-Logs Firebase Analytics events and user attributes. Events are dropped (and logged) until data-collection consent has been granted. Parameter values should be `string`, `long`/`int`, or `double`/`float`; other types are converted to strings. `SetFirebaseAnalyticsUserId(null)` clears the user ID.
+Logs Firebase Analytics events and user attributes. Events are **not** held back or dropped before consent — they are sent from launch, with the Consent Mode ad signals denied until the user accepts. All three are silent no-ops when `enableAnalytics` is off. Parameter values should be `string`, `long`/`int`, or `double`/`float`; other types are converted to strings. `SetFirebaseAnalyticsUserId(null)` clears the user ID.
 
 #### Crashlytics
 
@@ -489,11 +498,13 @@ public interface IFirebaseAdapter : IAdapter
 
 Abstraction over the Firebase Unity SDK used by Apollo's `FirebaseController`. **Apollo ships a concrete default implementation (`DefaultFirebaseAdapter`), so games normally do not implement this interface** — register your own via `RegisterAdapter<T>()` only to customize behavior or for testing. The interface exposes only Apollo-owned/primitive types, so referencing it requires no direct Firebase dependency. All methods must be safe to call when their feature is disabled — implementations no-op rather than throw.
 
+> **Custom implementations and Consent Mode:** if you register your own adapter, it owns the Firebase consent calls. Map `SetDataCollectionConsent(bool)` (and the `dataCollectionConsentGranted` passed to `Initialize`) to `FirebaseAnalytics.SetConsent` with the four-type mapping below, and call `FirebaseAnalytics.SetAnalyticsCollectionEnabled(true)` once per launch after Firebase is ready — earlier Apollo builds persisted `SetAnalyticsCollectionEnabled(false)` on installs that had not consented, and Apollo's build processors only fix the manifest / `Info.plist`, not that runtime flag. Never gate Analytics with `SetAnalyticsCollectionEnabled(false)`.
+
 | Member | Signature | Description |
 |---|---|---|
-| `Initialize` | `void Initialize(FirebaseSettings settings, bool dataCollectionConsentGranted, IFirebaseMessagingListener messagingListener, Action<bool, string> onInitializationComplete)` | Initializes the Firebase SDK (async dependency check) and wires Messaging callbacks. Consent state is applied immediately; completion callback delivers success + optional failure reason on the Unity main thread. |
-| `SetDataCollectionConsent` | `void SetDataCollectionConsent(bool granted)` | Enables/disables Analytics data collection (Crashlytics unaffected). |
-| `LogEvent` | `void LogEvent(string eventName, IDictionary<string, object> parameters)` | Logs an Analytics event; no-ops without consent. |
+| `Initialize` | `void Initialize(FirebaseSettings settings, bool dataCollectionConsentGranted, IFirebaseMessagingListener messagingListener, Action<bool, string> onInitializationComplete)` | Initializes the Firebase SDK (async dependency check) and wires Messaging callbacks. Once Firebase is ready it re-enables Analytics collection (clearing any persisted legacy kill switch) and applies the consent state via Consent Mode; completion callback delivers success + optional failure reason on the Unity main thread. |
+| `SetDataCollectionConsent` | `void SetDataCollectionConsent(bool granted)` | Pushes the GDPR decision into Firebase Consent Mode (Crashlytics unaffected): `true` → `analytics_storage`/`ad_storage`/`ad_user_data`/`ad_personalization` all granted; `false` → only `ad_user_data`/`ad_personalization` denied (storage types left at their platform defaults). |
+| `LogEvent` | `void LogEvent(string eventName, IDictionary<string, object> parameters)` | Logs an Analytics event. Not gated on consent (no-ops only when Analytics is disabled). |
 | `SetUserProperty` | `void SetUserProperty(string name, string value)` | Sets an Analytics user property. |
 | `SetAnalyticsUserId` | `void SetAnalyticsUserId(string userId)` | Sets the Analytics user ID. |
 | `LogCrashlyticsMessage` | `void LogCrashlyticsMessage(string message)` | Writes a Crashlytics breadcrumb log. |
