@@ -198,12 +198,12 @@ per-game project files, not stored here.)
 | Field | Type | Default | Description |
 |---|---|---|---|
 | `enableFirebase` | `bool` | `true` | Master switch. `false` (or asset absent) = the Firebase controller is never constructed; the whole subsystem is skipped. |
-| `enableAnalytics` | `bool` | `true` | Enables Firebase Analytics. Collection additionally requires GDPR consent at runtime. `false` = Analytics APIs are silent no-ops and the consent value is not applied to Firebase. |
+| `enableAnalytics` | `bool` | `true` | Enables Firebase Analytics. Analytics measures from launch; the GDPR decision is applied through Firebase Consent Mode (ad signals denied until the user accepts — events are not dropped). `false` = Analytics APIs are silent no-ops and the consent value is not pushed into Consent Mode (Apollo still calls `SetAnalyticsCollectionEnabled(true)` at every Firebase init to clear the kill switch older Apollo builds persisted). |
 | `enableCrashlytics` | `bool` | `true` | Enables Crashlytics. Deliberately **not** consent-gated — collection starts at Firebase init. `false` = Crashlytics APIs are silent no-ops. |
 | `enableMessaging` | `bool` | `true` | Enables Cloud Messaging (push). `false` = no FCM listeners attached, no token handling, all messaging APIs no-op (callbacks get null/false). |
 | `autoSubscribeTopics` | `List<string>` | empty | FCM topics the SDK auto-subscribes the device to once messaging attaches (on iOS fresh installs that happens at the notification-permission call, not at init). |
 | `requestNotificationPermissionOnStart` | `bool` | `false` | `true` = Apollo requests the OS notification permission itself during Firebase init. Keep `false` for any game with a consent flow so prompt timing stays under game control — call `BFGUnitySDK.RequestNotificationPermission()` yourself at the right moment. |
-| `verboseDebugLogging` | `bool` | `true` | Verbose `[Apollo.Firebase]` debug logs (FCM tokens, full message payloads, Analytics events, consent changes) to aid testing. |
+| `verboseDebugLogging` | `bool` | `true` | Verbose `[Apollo.Firebase]` debug logs (FCM tokens, full message payloads, Analytics events, consent changes) to aid testing — including the applied Consent Mode state, e.g. `Consent Mode: ad_user_data=denied, ad_personalization=denied`. |
 
 #### Fields — data-only pushes (optional)
 
@@ -558,7 +558,7 @@ Apollo owns both compliance flows end to end. The **built-in GDPR/consent dialog
 Fish policy service at init and on every foreground, presents any outstanding policies (GDPR-style
 opt-in/opt-out and mandatory Terms-of-Use/Privacy-Policy acceptance) in its own server-driven
 dialog, records every shown/accepted/declined decision to the compliance backend, and applies the
-outcome to Apollo's telemetry (the GTS `tpte` field) and Firebase Analytics automatically. The
+outcome to Apollo's telemetry (the GTS `tpte` field) and Firebase Analytics (Consent Mode) automatically. The
 **iOS ATT prompt** is likewise Apollo-owned: the game decides *when*
 (`RequestTrackingAuthorization()`), Apollo displays the native prompt, consumes the selection for
 the GTS `aptts` field and IDFA gating itself, and reports the result through instance-registered
@@ -575,11 +575,11 @@ directly.
   sections of the API Reference
 
 > **Game-managed consent (not recommended):** a game that runs its own consent system UI instead
-> of Apollo's dialog reports the decision itself with `EnableTargetedAdvertising(bool)` (records
-> to the compliance backend) plus `ApplyThirdPartyTrackingConsentStatus(bool)` (GTS `tpte`) and
-> `SetFirebaseDataCollectionConsent(bool)` (Firebase Analytics) — see the
-> [Consent & Policy section of the API Reference](../Apollo_Documentation.md#consent--policy) for those
-> three calls.
+> of Apollo's dialog reports the decision itself with one call, `EnableTargetedAdvertising(bool)`,
+> after `Initialize()`. It records the decision to the compliance backend and applies it exactly as
+> a dialog answer would — it calls `ApplyThirdPartyTrackingConsentStatus(bool)` (GTS `tpte`) and
+> `SetFirebaseDataCollectionConsent(bool)` (Firebase Consent Mode) for you, so do not call those as
+> well — see the [Consent & Policy section of the API Reference](../Apollo_Documentation.md#consent--policy).
 
 ---
 
@@ -588,8 +588,11 @@ directly.
 Apollo wraps Firebase Analytics, Crashlytics, and Cloud Messaging behind its adapter/listener
 pattern — Apollo ships the adapter, so your game imports the Firebase Unity SDK, creates
 `BfgFirebaseSettings.asset`, optionally registers an `IFirebaseMessagingListener`, and calls small
-`BFGUnitySDK` APIs instead of writing Firebase glue. **Analytics** is GDPR-gated and off by
-default (Apollo's built-in consent dialog drives it automatically). **Crashlytics** starts at init
+`BFGUnitySDK` APIs instead of writing Firebase glue. **Analytics** measures from launch and
+honors the GDPR decision through Firebase **Consent Mode** — `ad_user_data` / `ad_personalization`
+stay denied until the user accepts (Apollo's built-in consent dialog drives it automatically, and
+Apollo's editor build processors write the platform consent defaults into the exported
+`Info.plist` / Android manifest). **Crashlytics** starts at init
 and is deliberately not consent-gated. **Cloud Messaging** covers the FCM token lifecycle
 (including automatic token upload to your push server), OS notification-permission timing under
 game control, and notification-open delivery on both platforms including cold starts. In-App

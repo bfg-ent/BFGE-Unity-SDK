@@ -33,10 +33,61 @@ Make sure your build pipeline ships the production URL.
 Created by the same **BFG → Apollo → Create Missing Settings Files** menu as step 1. The asset
 must be named `BfgConsent` and live under `Resources/`.
 
-The field reference lives in
-[`APOLLO_SDK_INTEGRATION_GUIDE.md` → BfgConsent.asset](APOLLO_SDK_INTEGRATION_GUIDE.md#bfgconsentasset--consent-environment)
-— one field (`environment`); use `Test` during development and **set it to `Prod` before
-shipping**.
+| Field | Default | Purpose |
+|---|---|---|
+| `environment` | `Prod` | Environment tag on consent tracking events. Use `Test` during development; set to `Prod` before shipping. |
+| `consentDialogFont` | *(none)* | Optional `TMP_FontAsset` override. Leave empty to use Apollo's bundled font (LiberationSans SDF), which is independent of your project's TMP default. Set to your own font asset if you want the dialog to match your game's typography. CJK OS-font fallbacks are always appended regardless of which font is active. |
+
+### Regenerating the bundled font asset
+
+The font asset (`Assets/SDK/Resources/Apollo/ApolloConsent SDF.asset`) is committed in the repo
+and ships via `copy-apollo-dlls.sh`. You only need to regenerate it if the source TTF or the
+character coverage changes. Every setting below matters — the defaults produce a broken asset.
+
+1. In Unity Editor, open **Window → TextMeshPro → Font Asset Creator** and set:
+
+   | Field | Setting |
+   |---|---|
+   | Source Font | `Assets/TextMesh Pro/Fonts/LiberationSans.ttf` (Font Face: Regular) |
+   | Sampling Point Size | **Custom Size**, **60** — not the default "Auto Sizing" |
+   | Padding | **6**, with the **px** button selected — not the default "%" |
+   | Packing Method | Optimum |
+   | Atlas Resolution | 2048 × 2048 |
+   | Character Set | **Unicode Range (Hex)** with the sequence below — not "ASCII" |
+   | Render Mode | SDFAA |
+   | Get Font Features | **unticked** |
+
+   Character Sequence (Hex):
+
+   ```
+   20-7E,A0-17F,218-21B,2C6-2C7,2D8-2DD,384-3CE,400-45F,490-491,2000-206F,20AC,2122,2212,25A1
+   ```
+
+2. Click **Generate Font Atlas**. In the report under the preview, "Excluded characters" must be 0
+   (some characters are listed as missing because the TTF lacks them; that is expected).
+3. Click **Save as…** and overwrite `Assets/SDK/Resources/Apollo/ApolloConsent SDF.asset`. Saving
+   over the existing file keeps its `.meta` and GUID.
+4. Check the saved file: about 8–9 MB, and it contains `m_PointSize: 60`, `m_AtlasPadding: 6`
+   and 561 `m_Unicode:` entries.
+5. Commit the updated `.asset`, then run `copy-apollo-dlls.sh` to ship it in the package. No DLL
+   rebuild is needed.
+
+Why these settings:
+
+- **Sampling size 60 and padding 6 must match the OS fallback fonts.** `PolicyFontProvider`
+  creates the CJK fallback assets at `SAMPLING_POINT_SIZE = 60` / `ATLAS_PADDING = 6`. TextMeshPro
+  scales underline position and thickness by the ratio between the base font's and the fallback's
+  sampling sizes, so a mismatch ("Auto Sizing" picks about 357) draws link underlines as thick
+  bars one line too low whenever a link contains a fallback glyph, and makes fallback glyphs look
+  heavier than their neighbours in bold text.
+- **The character set must cover accented Latin and typographic punctuation.** The ranges add
+  Latin-1 and Latin Extended-A (German, French, Spanish, Italian, Portuguese, Nordic, Polish,
+  Turkish, Czech, Hungarian, Romanian), Greek, basic Cyrillic, curly quotes, dashes, the bullet
+  used for list items, and the euro and trademark signs. Anything missing from the atlas is drawn
+  from the OS CJK font instead, which has taller line metrics and gives uneven line spacing. With
+  the plain "ASCII" preset every `ä`, `é`, `’` or `•` does that.
+- **Get Font Features stays off.** It imports about 70,000 kerning pairs, growing the file from
+  about 8 MB to 37 MB and adding load time and memory on devices.
 
 ## 3. Register an `IPolicyListener` (before `Initialize()`)
 
@@ -158,7 +209,7 @@ third-party SDK's consent flag.
 ### If GDPR is declined: disable tracking on your advertising third parties
 
 > ⚠️ **Critical:** this step is highly important for GDPR compliance. Apollo gates only its own
-> telemetry — your game is responsible for honoring the user's decision across every third-party
+> telemetry and its Firebase integration — your game is responsible for honoring the user's decision across every third-party
 > advertising service it integrates.
 
 When the user declines (or has not accepted) the targeted-advertising policy, you must **disable
@@ -180,8 +231,13 @@ external SDKs for you.
   `ApplyAttConsentStatus` API no longer exists.)
 - **Don't call `ApplyThirdPartyTrackingConsentStatus` from the dialog outcome** — Apollo's dialog
   already calls it on accept/decline (it is what sets the GTS `tpte` flag).
-- **Don't set the Firebase Analytics consent from the dialog outcome**, unless you implement
-  Firebase Analytics separately from the Unity (Apollo) SDK's implementation.
+- **Don't set the Firebase Analytics consent from the dialog outcome** — Apollo's dialog already
+  pushes the decision into Firebase Consent Mode (accept → all four consent types granted;
+  decline → `ad_user_data` / `ad_personalization` denied, Analytics keeps measuring). The
+  exception is a game that integrates Firebase Analytics outside the Unity (Apollo) SDK: it must
+  apply the same mapping with `FirebaseAnalytics.SetConsent` itself, and must never gate Analytics
+  with `SetAnalyticsCollectionEnabled(false)` (see
+  [`FIREBASE_INTEGRATION_GUIDE.md`](FIREBASE_INTEGRATION_GUIDE.md)).
 - **Don't build any GDPR/consent UI** — the built-in dialog covers GDPR opt-in/out and mandatory
   ToU/Privacy-Policy acceptance, including localization and link handling.
 
@@ -196,6 +252,10 @@ On a fresh install (device, not Editor):
 3. GTS events after the flow carry the expected `tpte` and `aptts` values (see
    [`CONSENT_DESIGN.md` §7](CONSENT_DESIGN.md#7-what-the-consent-decision-gates) for the mapping).
 4. Decline path: your third-party ad SDKs are configured to non-personalized/tracking-off.
+5. If your game uses Apollo's Firebase: with `verboseDebugLogging` on, Accept logs
+   `[Apollo.Firebase] Consent Mode: analytics_storage=granted, ad_storage=granted, ad_user_data=granted, ad_personalization=granted`
+   and Decline logs `[Apollo.Firebase] Consent Mode: ad_user_data=denied, ad_personalization=denied`
+   (full Firebase checks: [`FIREBASE_INTEGRATION_GUIDE.md`](FIREBASE_INTEGRATION_GUIDE.md)).
 
 ## Troubleshooting
 
